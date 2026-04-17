@@ -19,19 +19,19 @@
   </section>
 
   <section class="panel">
-    <h2>RFID tags (10-digit IDs)</h2>
+    <h2>RFID tags</h2>
     <p class="lede">
-      Map each tag to an effect. Keys must be ten digits (leading zeros count). Kinds:
-      <code>reveal_letter</code> (random hidden slot on a 5-letter lock),
-      <code>reveal_digit</code> (random hidden digit on a 3- or 4-digit lock),
-      <code>hint</code> / <code>punishment</code> with optional <code>message</code>.
-      Easier difficulties cluster reveals on fewer locks; harder spreads them.
+      One 10-digit tag ID per line (leading zeros count). Blank lines and lines starting with
+      <code>#</code> are ignored. When a listed tag is scanned the engine randomly decides whether it's
+      a <strong>good</strong> scan (reveals one character on a random unsolved lock) or a
+      <strong>bad</strong> scan (Gamemaster punishment). Harder difficulties bias the roll toward
+      bad. Each tag can be used once per run.
     </p>
-    <label for="rfid-text" class="label">RFID map (JSON)</label>
-    <textarea id="rfid-text" class="codes" spellcheck="false"></textarea>
+    <label for="rfid-text" class="label">RFID tag list</label>
+    <textarea id="rfid-text" class="codes" spellcheck="false" placeholder="0011182827&#10;0004473485"></textarea>
     <div class="actions">
-      <button id="btn-save-rfid" type="button" class="primary">Save RFID map</button>
-      <button id="btn-reload-rfid" type="button" class="ghost">Reload RFID map</button>
+      <button id="btn-save-rfid" type="button" class="primary">Save tags</button>
+      <button id="btn-reload-rfid" type="button" class="ghost">Reload tags</button>
     </div>
     <div id="save-msg-rfid" class="banner" role="status"></div>
   </section>
@@ -48,7 +48,8 @@
     <ul class="list">
       <li>RFID device path: set env <code>RFID_DEVICE</code> (default matches your POC reader).</li>
       <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
-      <li>Each tag is one use per game (except unknown tags, which are not consumed).</li>
+      <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
+      <li>Good / bad roll odds by difficulty: Easy 85/15, Medium 75/25, Hard 65/35.</li>
     </ul>
   </section>
 

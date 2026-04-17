@@ -12,10 +12,25 @@ from escape_room.models import (
     GameSnapshot,
     LockKind,
     LockSlot,
-    RfidTagEntry,
     RfidTagFile,
 )
 from escape_room.rfid_format import normalize_rfid_tag
+
+
+# Odds that a valid RFID scan is a "good" result (random reveal) vs a "bad"
+# result (Gamemaster punishment). Tuned per difficulty.
+GOOD_SCAN_CHANCE: dict[Difficulty, float] = {
+    Difficulty.easy: 0.85,
+    Difficulty.medium: 0.75,
+    Difficulty.hard: 0.65,
+}
+
+PUNISHMENT_LINES: tuple[str, ...] = (
+    "Punishment! The Gamemaster gains an edge.",
+    "Bad scan — the Gamemaster laughs.",
+    "Cursed tag. No clue this time.",
+    "The Gamemaster claims that one.",
+)
 
 # Minigame ids the server can force-launch when players scan bad codes twice in a row.
 # Must match the URL slugs registered in main.py.
@@ -270,8 +285,7 @@ class GameEngine:
                 self._emit_code_result(result)
                 return result
 
-            entry = self._rfid.tags.get(tag)
-            if entry is None:
+            if not self._rfid.has(tag):
                 result = CodeAttemptResult(
                     ok=False,
                     message="Unknown RFID tag.",
@@ -285,47 +299,39 @@ class GameEngine:
             slots = self._active
             assert slots is not None
 
-            result = self._apply_rfid_entry(entry, slots, difficulty, rng)
+            result = self._roll_rfid_outcome(slots, difficulty, rng)
             self._spent_tags.add(tag)
             self._emit_code_result(result)
             return result
 
-    def _apply_rfid_entry(
+    def _roll_rfid_outcome(
         self,
-        entry: RfidTagEntry,
         slots: list[LockSlot],
         difficulty: Difficulty,
         rng: random.Random,
     ) -> CodeAttemptResult:
-        reward = entry.kind
-        if reward == "hint":
-            msg = entry.message or "Hint redeemed."
-            return CodeAttemptResult(ok=True, message=msg, interaction="rfid_hint")
-        if reward == "punishment":
-            msg = entry.message or "Punishment! The Gamemaster gains an edge."
-            return CodeAttemptResult(ok=False, message=msg, interaction="rfid_punishment")
-
-        if reward == "reveal_letter":
-            slot = _pick_lock_for_reveal(
-                slots,
-                kind_ok=lambda k: k == "letter5",
-                difficulty=difficulty,
-                rng=rng,
+        """
+        Valid RFID scan: roll good (random lock-code clue) vs bad (punishment).
+        The odds shift with difficulty; see GOOD_SCAN_CHANCE.
+        """
+        good_chance = GOOD_SCAN_CHANCE.get(difficulty, 0.75)
+        if rng.random() >= good_chance:
+            return CodeAttemptResult(
+                ok=False,
+                message=rng.choice(PUNISHMENT_LINES),
+                interaction="rfid_punishment",
             )
-            label = "letter"
-        else:
-            slot = _pick_lock_for_reveal(
-                slots,
-                kind_ok=lambda k: k in ("digit3", "digit4"),
-                difficulty=difficulty,
-                rng=rng,
-            )
-            label = "number"
 
+        slot = _pick_lock_for_reveal(
+            slots,
+            kind_ok=lambda _k: True,
+            difficulty=difficulty,
+            rng=rng,
+        )
         if slot is None:
             return CodeAttemptResult(
                 ok=True,
-                message=f"No hidden {label} clues left to reveal — use what you already have.",
+                message="Lucky scan — but every lock is already cracked or revealed.",
                 interaction="rfid_exhausted",
             )
 
@@ -333,11 +339,12 @@ class GameEngine:
         if applied is None:
             return CodeAttemptResult(
                 ok=True,
-                message="Nothing left to reveal on that lock.",
+                message="Lucky scan — nothing left to reveal on that lock.",
                 interaction="rfid_exhausted",
             )
 
         idx, char = applied
+        label = "letter" if slot.kind == "letter5" else "number"
         return CodeAttemptResult(
             ok=True,
             message=f'Clue earned: position {idx + 1} on a {label} lock is "{char}".',

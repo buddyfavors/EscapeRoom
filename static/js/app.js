@@ -71,7 +71,6 @@ function setBanner(text, tone) {
 function bannerToneForResult(r) {
   const inter = r.interaction || "lock";
   if (inter === "rfid_exhausted") return "";
-  if (inter === "rfid_hint" && r.ok) return "ok";
   return r.ok ? "ok" : "bad";
 }
 

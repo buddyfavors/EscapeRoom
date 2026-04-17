@@ -1,0 +1,5 @@
+# KnottyBytes Escape Room — RFID tag list
+# One 10-digit tag per line. Lines starting with '#' are ignored.
+# On scan, the game rolls a random good/bad outcome per tag.
+0011182827
+0004473485

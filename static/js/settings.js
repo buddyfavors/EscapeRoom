@@ -62,8 +62,9 @@ btnReload.addEventListener("click", async () => {
 btnSaveRfid.addEventListener("click", async () => {
   btnSaveRfid.disabled = true;
   try {
-    await postJson("/api/rfid-tags", { text: taRfid.value });
-    setSaveMsg(saveMsgRfid, "RFID map saved.", true);
+    const data = await postJson("/api/rfid-tags", { text: taRfid.value });
+    const count = typeof data.count === "number" ? data.count : null;
+    setSaveMsg(saveMsgRfid, count != null ? `Saved ${count} tag${count === 1 ? "" : "s"}.` : "RFID tags saved.", true);
   } catch (e) {
     setSaveMsg(saveMsgRfid, String(e.message || e), false);
   } finally {
@@ -73,7 +74,7 @@ btnSaveRfid.addEventListener("click", async () => {
 
 btnReloadRfid.addEventListener("click", async () => {
   await loadRfid();
-  setSaveMsg(saveMsgRfid, "RFID map reloaded from disk.", true);
+  setSaveMsg(saveMsgRfid, "RFID tags reloaded from disk.", true);
 });
 
 async function refreshGm() {

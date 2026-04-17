@@ -15,7 +15,7 @@ from escape_room.config import RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
 from escape_room.models import Difficulty, GameSnapshot
 from escape_room.rfid import RfidKeyboardListener
-from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_json, validate_rfid_tags_json
+from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
 from escape_room.minigames.ws_reaction_rush import run_reaction_rush_session
 from escape_room.minigames.ws_whack_mole import run_whack_mole_session
 from escape_room.minigames.ws_rps import run_rps_session
@@ -222,18 +222,22 @@ async def get_rfid_tags_raw() -> JSONResponse:
     from escape_room.config import RFID_TAGS_FILE
 
     if not RFID_TAGS_FILE.exists():
-        return JSONResponse(content={"text": '{"tags": {}}'})
+        default = (
+            "# One 10-digit tag per line. Lines starting with '#' are ignored.\n"
+            "# Good vs bad outcome is rolled per scan by the game engine.\n"
+        )
+        return JSONResponse(content={"text": default})
     return JSONResponse(content={"text": RFID_TAGS_FILE.read_text(encoding="utf-8")})
 
 
 @app.post("/api/rfid-tags")
 async def post_rfid_tags_raw(body: RfidTagsTextBody) -> JSONResponse:
-    ok, err = validate_rfid_tags_json(body.text)
+    ok, err = validate_rfid_tags_text(body.text)
     if not ok:
         raise HTTPException(status_code=400, detail=err)
-    tags = save_rfid_tags_json(body.text)
+    tags = save_rfid_tags_text(body.text)
     state.engine.set_rfid_tags(tags)
-    return JSONResponse(content={"ok": True})
+    return JSONResponse(content={"ok": True, "count": len(tags.tags)})
 
 
 @app.get("/api/game/status")

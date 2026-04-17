@@ -64,41 +64,33 @@ class GameSnapshot(BaseModel):
     won: bool = False
 
 
-RfidRewardKind = Literal["reveal_letter", "reveal_digit", "hint", "punishment"]
-
-
-class RfidTagEntry(BaseModel):
-    kind: RfidRewardKind
-    message: str | None = Field(
-        default=None,
-        description="Optional text for hint or punishment entries.",
-    )
-
-
 class RfidTagFile(BaseModel):
-    """Maps 10-digit tag IDs (string keys) to what scanning that tag does once per game."""
+    """
+    Flat list of valid 10-digit RFID tag IDs. Each scan against a known tag is
+    consumed once; the game engine then rolls good vs bad on the fly.
+    """
 
-    tags: dict[str, RfidTagEntry] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
 
-    @model_validator(mode="before")
+    @field_validator("tags", mode="before")
     @classmethod
-    def _normalize_keys(cls, data: Any) -> Any:  # noqa: ANN401
-        if not isinstance(data, dict):
-            return data
-        tags = data.get("tags")
-        if not isinstance(tags, dict):
-            return data
-        norm: dict[str, Any] = {}
-        for k, v in tags.items():
-            key = str(k).strip()
-            d = "".join(c for c in key if c.isdigit())
+    def _normalize_tags(cls, v):  # noqa: ANN001
+        if not isinstance(v, list):
+            return v
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in v:
+            s = str(raw).strip()
+            d = "".join(c for c in s if c.isdigit())
             if len(d) > 10:
                 d = d[-10:]
-            if len(d) == 10:
-                norm[d] = v
-        data = dict(data)
-        data["tags"] = norm
-        return data
+            if len(d) == 10 and d not in seen:
+                seen.add(d)
+                out.append(d)
+        return out
+
+    def has(self, tag: str) -> bool:
+        return tag in self.tags
 
 
 class CodeAttemptResult(BaseModel):
@@ -109,7 +101,6 @@ class CodeAttemptResult(BaseModel):
     interaction: Literal[
         "lock",
         "rfid_reveal",
-        "rfid_hint",
         "rfid_punishment",
         "rfid_unknown",
         "rfid_spent",
