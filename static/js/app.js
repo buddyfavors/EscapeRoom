@@ -1,10 +1,11 @@
 const banner = document.getElementById("banner");
 const locksEl = document.getElementById("locks");
 const btnPlay = document.getElementById("btn-play");
-const btnStop = document.getElementById("btn-stop");
-const mgList = document.getElementById("minigames");
-const formTest = document.getElementById("form-test");
-const testCode = document.getElementById("test-code");
+const overviewView = document.getElementById("overview-view");
+const activeView = document.getElementById("active-view");
+const activeDifficulty = document.getElementById("active-difficulty");
+const progressPill = document.getElementById("progress-pill");
+const wonBadge = document.getElementById("won-badge");
 
 function selectedDifficulty() {
   const el = document.querySelector('input[name="difficulty"]:checked');
@@ -24,12 +25,29 @@ function formatClues(lock) {
   return clues.map((c) => (c == null || c === "" ? "·" : String(c))).join(" ");
 }
 
-function renderSnapshot(snap) {
-  locksEl.innerHTML = "";
-  if (!snap || !snap.locks) {
-    locksEl.textContent = "No active game.";
+function setActiveView(snap) {
+  const active = !!(snap && snap.locks);
+  if (overviewView) overviewView.hidden = active;
+  if (activeView) activeView.hidden = !active;
+  if (window.NavSetGameActive) window.NavSetGameActive(active);
+  if (!active) {
+    if (locksEl) locksEl.innerHTML = "";
+    if (progressPill) progressPill.textContent = "0 / 0 open";
+    if (wonBadge) wonBadge.hidden = true;
     return;
   }
+  if (activeDifficulty) {
+    const d = (snap.difficulty || "").toString();
+    activeDifficulty.textContent = d ? "— " + d[0].toUpperCase() + d.slice(1) : "";
+  }
+  const total = snap.locks.length;
+  const opened = snap.locks.filter((l) => l.solved).length;
+  if (progressPill) {
+    progressPill.textContent = opened + " / " + total + " open";
+    progressPill.classList.toggle("good", opened === total && total > 0);
+  }
+  if (wonBadge) wonBadge.hidden = !snap.won;
+  locksEl.innerHTML = "";
   for (const lock of snap.locks) {
     const card = document.createElement("div");
     card.className = "lock-card" + (lock.solved ? " solved" : "");
@@ -43,6 +61,7 @@ function renderSnapshot(snap) {
 }
 
 function setBanner(text, tone) {
+  if (!banner) return;
   banner.textContent = text || "";
   banner.classList.remove("ok", "bad");
   if (tone === "ok") banner.classList.add("ok");
@@ -70,56 +89,43 @@ async function postJson(url, body) {
   return data;
 }
 
-btnPlay.addEventListener("click", async () => {
-  btnPlay.disabled = true;
-  try {
-    const data = await postJson("/api/game/start", { difficulty: selectedDifficulty() });
-    setBanner("Game started. Good luck!", "ok");
-    renderSnapshot(data.snapshot);
-  } catch (e) {
-    setBanner(String(e.message || e), "bad");
-  } finally {
-    btnPlay.disabled = false;
-  }
-});
-
-btnStop.addEventListener("click", async () => {
-  try {
-    await postJson("/api/game/stop", {});
-    setBanner("Game ended.", "");
-    renderSnapshot(null);
-  } catch (e) {
-    setBanner(String(e.message || e), "bad");
-  }
-});
-
-formTest.addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const code = testCode.value || "";
-  try {
-    const data = await postJson("/api/game/submit", { code });
-    if (data.snapshot) renderSnapshot(data.snapshot);
-    setBanner(data.result.message, bannerToneForResult(data.result));
-  } catch (e) {
-    setBanner(String(e.message || e), "bad");
-  }
-});
+if (btnPlay) {
+  btnPlay.addEventListener("click", async () => {
+    btnPlay.disabled = true;
+    try {
+      const data = await postJson("/api/game/start", { difficulty: selectedDifficulty() });
+      setBanner("Game started. Good luck!", "ok");
+      setActiveView(data.snapshot);
+    } catch (e) {
+      setBanner(String(e.message || e), "bad");
+    } finally {
+      btnPlay.disabled = false;
+    }
+  });
+}
 
 function applyWsMessage(msg) {
   if (msg.type === "hello") {
-    renderSnapshot(msg.snapshot);
+    setActiveView(msg.snapshot);
     return;
   }
   if (msg.type === "game_started" || msg.type === "code_result") {
-    if (msg.snapshot) renderSnapshot(msg.snapshot);
+    if (msg.snapshot) setActiveView(msg.snapshot);
     if (msg.type === "code_result" && msg.result) {
       setBanner(msg.result.message, bannerToneForResult(msg.result));
     }
     return;
   }
   if (msg.type === "game_stopped") {
-    renderSnapshot(null);
+    setActiveView(null);
     setBanner("Game ended.", "");
+    return;
+  }
+  if (msg.type === "forced_minigame" && msg.url) {
+    setBanner("The Gamemaster locks the room — a minigame begins…", "bad");
+    window.setTimeout(() => {
+      window.location.href = msg.url;
+    }, 800);
   }
 }
 
@@ -147,27 +153,13 @@ function connectWs() {
   });
 }
 
-async function loadMinigames() {
-  const res = await fetch("/api/minigames");
-  const items = await res.json();
-  const skip = new Set(["reaction", "whack_a_mole"]);
-  mgList.innerHTML = "";
-  for (const m of items) {
-    if (skip.has(m.id)) continue;
-    const li = document.createElement("li");
-    li.innerHTML = `<strong>${m.title}</strong> — ${m.description}`;
-    mgList.appendChild(li);
-  }
-}
-
 (async () => {
   try {
     const res = await fetch("/api/game/status");
     const data = await res.json();
-    if (data.snapshot) renderSnapshot(data.snapshot);
+    setActiveView(data.snapshot);
   } catch {
     /* offline */
   }
   connectWs();
-  loadMinigames();
 })();

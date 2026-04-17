@@ -131,5 +131,40 @@
     whackLose() {
       global.MinigameSounds.reactionLose();
     },
+
+    genericTick() {
+      tone(540, 0.05, 0.08, "triangle");
+    },
+
+    genericOk() {
+      global.MinigameSounds.reactionHit();
+    },
+
+    genericWrong() {
+      const c = getCtx();
+      if (!c) return;
+      const t0 = c.currentTime + 0.01;
+      tone(220, 0.12, 0.12, "square", t0);
+      tone(165, 0.16, 0.11, "square", t0 + 0.05);
+    },
+
+    genericWin() {
+      global.MinigameSounds.reactionWin();
+    },
+
+    genericLose() {
+      global.MinigameSounds.reactionLose();
+    },
+
+    simonTone(col) {
+      const notes = [330, 440, 554, 659, 784];
+      tone(notes[col % notes.length] || 440, 0.22, 0.12, "sine");
+    },
+
+    rpsReveal(outcome) {
+      if (outcome === "win") return global.MinigameSounds.reactionHit();
+      if (outcome === "lose") return global.MinigameSounds.genericWrong();
+      tone(440, 0.12, 0.1, "triangle");
+    },
   };
 })(window);

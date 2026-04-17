@@ -53,7 +53,63 @@
       }
     }
 
-    return { clearAll, setReactionTarget, setWhackMoles, grid };
+    function allButtonsForColumn(colIndex) {
+      const out = [];
+      for (let s = 0; s < 3; s++) {
+        const id = colIndex * 3 + s;
+        const b = byId.get(id);
+        if (b) out.push(b);
+      }
+      return out;
+    }
+
+    function flashColumn(colIndex, ms) {
+      const btns = allButtonsForColumn(colIndex);
+      for (const b of btns) {
+        b.classList.remove("dim");
+        b.classList.add("col-flash");
+      }
+      return new Promise((resolve) => {
+        window.setTimeout(() => {
+          for (const b of btns) {
+            b.classList.remove("col-flash");
+            b.classList.add("dim");
+          }
+          resolve();
+        }, ms);
+      });
+    }
+
+    function flashButton(id, ms) {
+      const b = byId.get(id);
+      if (!b) return Promise.resolve();
+      b.classList.remove("dim");
+      b.classList.add("flash");
+      return new Promise((resolve) => {
+        window.setTimeout(() => {
+          b.classList.remove("flash");
+          b.classList.add("dim");
+          resolve();
+        }, ms);
+      });
+    }
+
+    function pulseButton(id, cls, ms) {
+      const b = byId.get(id);
+      if (!b) return;
+      b.classList.add(cls);
+      window.setTimeout(() => b.classList.remove(cls), ms || 400);
+    }
+
+    return {
+      clearAll,
+      setReactionTarget,
+      setWhackMoles,
+      flashColumn,
+      flashButton,
+      pulseButton,
+      grid,
+    };
   }
 
   global.mountArcadeGrid = mountArcadeGrid;

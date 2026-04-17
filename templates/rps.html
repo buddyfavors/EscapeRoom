@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Rock Paper Scissors — Minigame{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="/static/css/minigames.css" />
+{% endblock %}
+{% block content %}
+  <section class="panel minigame-page">
+    <h1>Rock Paper Scissors</h1>
+    <p class="lede">
+      Best-of match against the Gamemaster. Tap a choice (or map three physical buttons).
+      Hard mode tightens the clock and the Gamemaster starts reading your habits.
+    </p>
+
+    <div class="minigame-toolbar">
+      <label>
+        Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy — first to 2</option>
+          <option value="medium" selected>Medium — first to 2</option>
+          <option value="hard">Hard — first to 3, predictive</option>
+        </select>
+      </label>
+      <button id="btn-start" type="button" class="primary">Start match</button>
+      <span id="status" class="status-pill">Idle</span>
+    </div>
+
+    <div class="rps-scoreboard">
+      <div class="score-box you">You: <span id="score-you">0</span></div>
+      <div class="score-box gm">Gamemaster: <span id="score-gm">0</span></div>
+      <div class="muted">Round <span id="round-i">–</span></div>
+    </div>
+
+    <div class="timer-bar"><i></i></div>
+
+    <div class="rps-choices">
+      <button class="rps-choice" data-choice="rock" type="button">
+        <span class="icon">✊</span>Rock
+      </button>
+      <button class="rps-choice" data-choice="paper" type="button">
+        <span class="icon">✋</span>Paper
+      </button>
+      <button class="rps-choice" data-choice="scissors" type="button">
+        <span class="icon">✌️</span>Scissors
+      </button>
+    </div>
+
+    <div id="reveal" class="rps-reveal muted">Waiting to start…</div>
+
+    <p class="muted"><a href="/minigames">All minigames</a> · <a href="/">Escape room</a></p>
+  </section>
+
+  <script src="/static/js/minigame_sounds.js"></script>
+  <script src="/static/js/rps_page.js"></script>
+{% endblock %}

@@ -107,7 +107,7 @@ async def run_whack_mole_session(ws: WebSocket) -> None:
                             "button": btn,
                             "lives": lives,
                             "score": score,
-                            "message": "Trap! The house loves greed.",
+                            "message": "Trap! The Gamemaster loves greed.",
                         }
                     )
                     round_failed = True
@@ -142,7 +142,7 @@ async def run_whack_mole_session(ws: WebSocket) -> None:
                 await ws.send_json(
                     {
                         "type": "round_timeout",
-                        "message": "Safe moles left standing — point to the house.",
+                        "message": "Safe moles left standing — the Gamemaster scores.",
                         "score": score,
                         "lives": lives,
                         "missed": sorted(safes - cleared),

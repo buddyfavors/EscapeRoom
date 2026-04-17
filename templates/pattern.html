@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Pattern Match — Minigame{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="/static/css/minigames.css" />
+{% endblock %}
+{% block content %}
+  <section class="panel minigame-page">
+    <h1>Pattern Match</h1>
+    <p class="lede">
+      Memorize the exact sequence of buttons the Gamemaster flashes, then hit them back in order.
+      Each round the sequence grows — one wrong press and the round fails.
+    </p>
+
+    <div class="minigame-toolbar">
+      <label>
+        Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy — 5 rounds, 2 lives</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard — fast, +2 per round</option>
+        </select>
+      </label>
+      <button id="btn-start" type="button" class="primary">Start round</button>
+      <span id="status" class="status-pill">Idle</span>
+    </div>
+
+    <div id="arcade-root"></div>
+    <p id="log" class="logline">Round —, length —, lives —.</p>
+    <p class="muted"><a href="/minigames">All minigames</a> · <a href="/">Escape room</a></p>
+  </section>
+
+  <script src="/static/js/minigame_sounds.js"></script>
+  <script src="/static/js/arcade_grid.js"></script>
+  <script src="/static/js/pattern_page.js"></script>
+{% endblock %}

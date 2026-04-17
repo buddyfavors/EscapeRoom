@@ -18,6 +18,10 @@ from escape_room.rfid import RfidKeyboardListener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_json, validate_rfid_tags_json
 from escape_room.minigames.ws_reaction_rush import run_reaction_rush_session
 from escape_room.minigames.ws_whack_mole import run_whack_mole_session
+from escape_room.minigames.ws_rps import run_rps_session
+from escape_room.minigames.ws_simon import run_simon_session
+from escape_room.minigames.ws_hangman import run_hangman_session
+from escape_room.minigames.ws_pattern import run_pattern_session
 from escape_room.storage import load_code_pools, save_code_pools_json, validate_codes_json
 
 logger = logging.getLogger(__name__)
@@ -35,10 +39,6 @@ class RfidTagsTextBody(BaseModel):
 
 class GameStartBody(BaseModel):
     difficulty: Difficulty = Difficulty.easy
-
-
-class GameSubmitBody(BaseModel):
-    code: str
 
 
 def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
@@ -177,6 +177,26 @@ async def minigame_whack_mole(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("whack_mole.html", {"request": request})
 
 
+@app.get("/minigames/rps", response_class=HTMLResponse)
+async def minigame_rps(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("rps.html", {"request": request})
+
+
+@app.get("/minigames/simon", response_class=HTMLResponse)
+async def minigame_simon(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("simon.html", {"request": request})
+
+
+@app.get("/minigames/hangman", response_class=HTMLResponse)
+async def minigame_hangman(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("hangman.html", {"request": request})
+
+
+@app.get("/minigames/pattern", response_class=HTMLResponse)
+async def minigame_pattern(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("pattern.html", {"request": request})
+
+
 @app.get("/api/codes")
 async def get_codes_raw() -> JSONResponse:
     from escape_room.config import CODES_FILE
@@ -248,19 +268,6 @@ async def game_stop() -> JSONResponse:
     return JSONResponse(content={"ok": True})
 
 
-@app.post("/api/game/submit")
-async def game_submit(body: GameSubmitBody) -> JSONResponse:
-    """Manual code entry for testing (RFID still works in parallel)."""
-    result = state.engine.submit_code(body.code)
-    snap = state.engine.snapshot()
-    return JSONResponse(
-        content={
-            "result": result.model_dump(mode="json"),
-            "snapshot": _redact_snapshot(snap),
-        }
-    )
-
-
 @app.get("/api/minigames")
 async def minigames_list() -> JSONResponse:
     from escape_room.minigames import list_minigames
@@ -284,6 +291,43 @@ async def websocket_whack_mole(ws: WebSocket) -> None:
     await ws.accept()
     try:
         await run_whack_mole_session(ws)
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/ws/minigame/rps")
+async def websocket_rps(ws: WebSocket) -> None:
+    await ws.accept()
+    try:
+        await run_rps_session(ws)
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/ws/minigame/simon")
+async def websocket_simon(ws: WebSocket) -> None:
+    await ws.accept()
+    try:
+        await run_simon_session(ws)
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/ws/minigame/hangman")
+async def websocket_hangman(ws: WebSocket) -> None:
+    await ws.accept()
+    try:
+        pools = state.engine.get_pools()
+        await run_hangman_session(ws, word_pool=list(pools.letter5))
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/ws/minigame/pattern")
+async def websocket_pattern(ws: WebSocket) -> None:
+    await ws.accept()
+    try:
+        await run_pattern_session(ws)
     except WebSocketDisconnect:
         pass
 

@@ -110,7 +110,7 @@
       if (msg.type === "over") {
         stopTimerAnim();
         grid.clearAll();
-        setStatus(msg.won ? "You beat the clock!" : "House wins this round.", msg.won ? "good" : "bad");
+        setStatus(msg.won ? "You beat the clock!" : "The Gamemaster wins this round.", msg.won ? "good" : "bad");
         log(msg.won ? "Final score <strong>" + msg.score + "</strong>" : "Try again when ready.");
         btnStart.disabled = false;
         sfx(msg.won ? "reactionWin" : "reactionLose");

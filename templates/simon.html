@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Simon Says — Minigame{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="/static/css/minigames.css" />
+{% endblock %}
+{% block content %}
+  <section class="panel minigame-page">
+    <h1>Simon Says</h1>
+    <p class="lede">
+      Watch the sequence of column flashes (<strong>Green · Blue · White · Yellow · Red</strong>), then repeat by
+      pressing <em>any</em> button in each color column in order. Extreme difficulty is fast and strict — one miss
+      ends the round.
+    </p>
+
+    <div class="minigame-toolbar">
+      <label>
+        Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy — slow, 2 lives</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Extreme — fast &amp; strict</option>
+        </select>
+      </label>
+      <button id="btn-start" type="button" class="primary">Start round</button>
+      <span id="status" class="status-pill">Idle</span>
+    </div>
+
+    <div id="arcade-root"></div>
+    <p id="log" class="logline">Round —, length —, lives —.</p>
+    <p class="muted"><a href="/minigames">All minigames</a> · <a href="/">Escape room</a></p>
+  </section>
+
+  <script src="/static/js/minigame_sounds.js"></script>
+  <script src="/static/js/arcade_grid.js"></script>
+  <script src="/static/js/simon_page.js"></script>
+{% endblock %}

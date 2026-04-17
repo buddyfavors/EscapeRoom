@@ -20,20 +20,20 @@ def list_minigames() -> list[MinigameInfo]:
         MinigameInfo(
             id="rps",
             title="Rock Paper Scissors",
-            description="Three arcade buttons map to rock, paper, scissors vs the house.",
-            notes="Map 3 physical buttons (one per choice); optional LED feedback per color.",
+            description="Three arcade buttons map to rock, paper, scissors vs the Gamemaster.",
+            notes="Play at /minigames/rps — best of 3; map 3 physical buttons (one per choice).",
         ),
         MinigameInfo(
             id="simon",
             title="Simon Says",
             description="Repeat an increasing sequence of lit buttons.",
-            notes="easy: slower pace + shorter sequences; extreme: faster + longer + stricter timing.",
+            notes="Play at /minigames/simon — easy = slow pace, extreme = faster + longer + strict.",
         ),
         MinigameInfo(
             id="hangman",
             title="Hangman",
-            description="Guess a word letter-by-letter; great tie-in to 5-letter combo locks.",
-            notes="Use colored button groups as letter buckets or a soft keyboard on the monitor.",
+            description="Guess a 5-letter word one letter at a time; tie-in to letter locks.",
+            notes="Play at /minigames/hangman — 6 wrong guesses and the Gamemaster wins.",
         ),
         MinigameInfo(
             id="reaction",
@@ -42,10 +42,10 @@ def list_minigames() -> list[MinigameInfo]:
             notes="Play at /minigames/reaction-rush — map GPIO to button ids 0–14.",
         ),
         MinigameInfo(
-            id="pattern_match",
+            id="pattern",
             title="Pattern Match",
-            description="Show a short color sequence; players recreate it with colored buttons.",
-            notes="Pairs with Green/Blue/White/Yellow/Red ×3 layout; GM/AI can inject decoy flashes.",
+            description="Memorize a color sequence, then recreate it in order on the grid.",
+            notes="Play at /minigames/pattern — each round the sequence grows by one.",
         ),
         MinigameInfo(
             id="whack_a_mole",

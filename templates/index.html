@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Play — Escape Room{% endblock %}
 {% block content %}
-  <section class="panel">
+  <section id="overview-view" class="panel kiosk-hero">
     <h1>Escape Room</h1>
     <p class="lede">
-      Each RFID fob/badge reads as a <strong>10-digit</strong> number (digits + Enter on the reader). Those scans earn
-      letter or digit clues toward the combo locks, or hints / punishments if you configure them. Enter the full lock
-      combination in the test field (3, 4, or 5 characters) to open a lock when you think you have it.
+      Pick a difficulty and launch the run. RFID scans (10 digits) reveal letter or number clues;
+      short digit strings try the numeric locks, five letters try a letter lock. Scan two wrong
+      codes in a row and the Gamemaster will pick a minigame for you.
     </p>
 
     <fieldset class="difficulty">
@@ -17,8 +17,21 @@
     </fieldset>
 
     <div class="actions">
-      <button id="btn-play" type="button" class="primary">Play</button>
-      <button id="btn-stop" type="button" class="ghost">End game</button>
+      <button id="btn-play" type="button" class="primary big">Start run</button>
+      <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
+    </div>
+  </section>
+
+  <section id="active-view" class="panel kiosk-hero" hidden>
+    <div class="active-head">
+      <div>
+        <h1>
+          Run in progress <span id="active-difficulty" class="muted"></span>
+          <span id="won-badge" class="won-badge" hidden>ESCAPED</span>
+        </h1>
+        <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
+      </div>
+      <div id="progress-pill" class="progress-pill">0 / 0 open</div>
     </div>
 
     <div id="banner" class="banner" role="status" aria-live="polite"></div>
@@ -27,28 +40,6 @@
       <h2>Locks</h2>
       <div id="locks" class="locks"></div>
     </section>
-
-    <details class="tester">
-      <summary>Test code entry</summary>
-      <form id="form-test" class="inline-form">
-        <input id="test-code" type="text" autocomplete="off" placeholder="Code" />
-        <button type="submit">Submit</button>
-      </form>
-    </details>
-  </section>
-
-  <section class="panel secondary">
-    <h2>Minigames</h2>
-    <p class="muted">
-      Arcade grid on the monitor: <strong>Green · Blue · White · Yellow · Red</strong> (×3 each), ids 0–14 match your
-      rig. Web Audio sounds on HDMI or a speaker.
-    </p>
-    <ul class="list">
-      <li><a href="/minigames/reaction-rush">Reaction Rush</a> — shrinking reaction window</li>
-      <li><a href="/minigames/whack-mole">Whack-a-Mole (traps)</a> — safe moles vs trap moles</li>
-    </ul>
-    <p class="muted">More ideas (API):</p>
-    <ul id="minigames" class="list"></ul>
   </section>
 
   <script src="/static/js/app.js"></script>

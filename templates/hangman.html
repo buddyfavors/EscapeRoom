@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Hangman — Minigame{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="/static/css/minigames.css" />
+{% endblock %}
+{% block content %}
+  <section class="panel minigame-page">
+    <h1>Hangman</h1>
+    <p class="lede">
+      5-letter word from the Gamemaster's vault. Tap a letter to guess. Wrong guesses cost you a life —
+      out of lives and the Gamemaster wins. Great warmup for the letter combination locks.
+    </p>
+
+    <div class="minigame-toolbar">
+      <label>
+        Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy — 7 wrong</option>
+          <option value="medium" selected>Medium — 6 wrong</option>
+          <option value="hard">Hard — 5 wrong, fast turns</option>
+        </select>
+      </label>
+      <button id="btn-start" type="button" class="primary">New word</button>
+      <span id="status" class="status-pill">Idle</span>
+    </div>
+
+    <div class="hangman-lives" id="lives"></div>
+    <div class="hangman-word" id="word"></div>
+    <div class="hangman-keyboard" id="keyboard"></div>
+    <p id="log" class="logline">Press <strong>New word</strong> to begin.</p>
+    <p class="muted"><a href="/minigames">All minigames</a> · <a href="/">Escape room</a></p>
+  </section>
+
+  <script src="/static/js/minigame_sounds.js"></script>
+  <script src="/static/js/hangman_page.js"></script>
+{% endblock %}

@@ -132,7 +132,7 @@
       if (msg.type === "over") {
         grid.clearAll();
         stopTimerAnim();
-        setStatus(msg.won ? "Crew wins!" : "House wins.", msg.won ? "good" : "bad");
+        setStatus(msg.won ? "Crew wins!" : "Gamemaster wins.", msg.won ? "good" : "bad");
         sfx(msg.won ? "whackWin" : "whackLose");
         log(
           "Score <strong>" +

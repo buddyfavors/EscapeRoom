@@ -17,6 +17,19 @@ from escape_room.models import (
 )
 from escape_room.rfid_format import normalize_rfid_tag
 
+# Minigame ids the server can force-launch when players scan bad codes twice in a row.
+# Must match the URL slugs registered in main.py.
+FORCED_MINIGAME_IDS: tuple[str, ...] = (
+    "reaction-rush",
+    "whack-mole",
+    "rps",
+    "simon",
+    "hangman",
+    "pattern",
+)
+
+BAD_CODE_STREAK_TRIGGER = 2
+
 
 # Physical inventory: 4× 3-digit, 2× 5-letter, 4× 4-digit.
 INVENTORY: dict[LockKind, int] = {
@@ -129,6 +142,7 @@ class GameEngine:
         self._difficulty: Difficulty | None = None
         self._started_at: datetime | None = None
         self._spent_tags: set[str] = set()
+        self._bad_streak: int = 0
         self._listeners: list[Callable[[dict], None]] = []
 
     def set_pools(self, pools: CodePools) -> None:
@@ -215,6 +229,7 @@ class GameEngine:
             self._difficulty = difficulty
             self._started_at = datetime.now(tz=timezone.utc)
             self._spent_tags.clear()
+            self._bad_streak = 0
             snap = self.snapshot()
             assert snap is not None
             self._emit({"type": "game_started", "snapshot": snap.model_dump(mode="json")})
@@ -226,6 +241,7 @@ class GameEngine:
             self._difficulty = None
             self._started_at = None
             self._spent_tags.clear()
+            self._bad_streak = 0
         self._emit({"type": "game_stopped"})
 
     def submit_code(self, raw: str) -> CodeAttemptResult:
@@ -286,7 +302,7 @@ class GameEngine:
             msg = entry.message or "Hint redeemed."
             return CodeAttemptResult(ok=True, message=msg, interaction="rfid_hint")
         if reward == "punishment":
-            msg = entry.message or "Punishment! (The house gains an edge.)"
+            msg = entry.message or "Punishment! The Gamemaster gains an edge."
             return CodeAttemptResult(ok=False, message=msg, interaction="rfid_punishment")
 
         if reward == "reveal_letter":
@@ -335,6 +351,7 @@ class GameEngine:
         )
 
     def _submit_lock_combination(self, raw: str) -> CodeAttemptResult:
+        forced_minigame_url: str | None = None
         with self._lock:
             if not self._active:
                 result = CodeAttemptResult(ok=False, message="No active game.", interaction="lock")
@@ -352,6 +369,7 @@ class GameEngine:
                     continue
                 if _matches(slot.kind, submitted, slot.code):
                     slot.solved = True
+                    self._bad_streak = 0
                     won = all(s.solved for s in self._active)
                     msg = "Lock opened!"
                     if won:
@@ -366,10 +384,31 @@ class GameEngine:
                     self._emit_code_result(result)
                     return result
 
+            self._bad_streak += 1
+            triggered = self._bad_streak >= BAD_CODE_STREAK_TRIGGER
+            if triggered:
+                self._bad_streak = 0
+                minigame_id = random.choice(FORCED_MINIGAME_IDS)
+                forced_minigame_url = f"/minigames/{minigame_id}?forced=1"
+
+            tail = (
+                " The Gamemaster has picked a challenge for you."
+                if triggered
+                else f" (strike {self._bad_streak}/{BAD_CODE_STREAK_TRIGGER})"
+            )
             result = CodeAttemptResult(
                 ok=False,
-                message="That code does not open a lock.",
+                message="That code does not open a lock." + tail,
                 interaction="lock",
             )
             self._emit_code_result(result)
-            return result
+
+        if forced_minigame_url:
+            self._emit(
+                {
+                    "type": "forced_minigame",
+                    "url": forced_minigame_url,
+                    "reason": "2_bad_codes",
+                }
+            )
+        return result
