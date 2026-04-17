@@ -6,8 +6,9 @@
     <p class="lede">
       Pick a difficulty and launch the run. Each valid RFID scan (10 digits) rolls good or bad —
       good reveals one character on a random unsolved lock (~40% of scans come up bad on Medium).
-      Shorter digit strings try the numeric locks, five letters try a letter lock. Three wrong
-      <em>lock combinations</em> in a row (not RFID) spin the <strong>wheel of punishments</strong>.
+      Shorter digit strings try the numeric locks, five letters try a letter lock. Three
+      <strong>bad codes</strong> in a row — wrong lock combinations <em>or</em> bad RFID rolls — spin
+      the <strong>wheel of punishments</strong>. A good RFID clue or opening a lock resets the bad streak.
       Every <strong>three</strong> good RFID rolls (bad rolls do not count) forces a minigame.
     </p>
 
@@ -37,7 +38,7 @@
         <div
           id="bad-codes-pill"
           class="strike-pill bad-pill"
-          title="Wrong lock combinations (3-digit, 4-digit, or 5-letter). RFID scans do not change this. At 3/3, the punishment wheel spins."
+          title="Counts consecutive bad RFID punishment rolls and wrong lock combinations. Resets when you get a good RFID clue or open a lock. At 3/3, the punishment wheel spins."
         >
           <span class="strike-label">Bad codes</span>
           <span id="bad-codes-dots" class="strike-dots"></span>
@@ -55,7 +56,7 @@
       </div>
     </div>
     <p class="muted meter-hint">
-      <strong>Bad codes</strong> — wrong <em>lock</em> combinations in a row (RFID does not count); at 3/3 the punishment wheel spins.
+      <strong>Bad codes</strong> — wrong lock tries <em>or</em> bad RFID punishments in a row; good RFID clues and opened locks reset the streak; at 3/3 the wheel spins.
       <strong>Good codes</strong> — each good RFID roll advances 1 (bad rolls do not); at 3/3 a minigame opens next.
     </p>
 

@@ -64,11 +64,11 @@ class GameSnapshot(BaseModel):
     won: bool = False
     bad_codes_progress: int = Field(
         default=0,
-        description="Wrong lock combinations since the last open lock or wheel spin.",
+        description="Consecutive bad outcomes: RFID punishment rolls and/or wrong lock combinations.",
     )
     bad_codes_goal: int = Field(
         default=3,
-        description="Wrong lock combinations before the punishment wheel spins.",
+        description="Bad codes in a row before the punishment wheel spins (reset by good RFID or opening a lock).",
     )
     good_rfid_progress: int = Field(
         default=0,

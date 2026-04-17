@@ -166,7 +166,7 @@ class GameEngine:
         self._difficulty: Difficulty | None = None
         self._started_at: datetime | None = None
         self._spent_tags: set[str] = set()
-        self._bad_lock_streak: int = 0
+        self._bad_codes_streak: int = 0
         self._good_rfid_since_minigame: int = 0
         self._listeners: list[Callable[[dict], None]] = []
 
@@ -233,7 +233,7 @@ class GameEngine:
                 locks=locks,
                 started_at_iso=self._started_at.isoformat() if self._started_at else None,
                 won=won,
-                bad_codes_progress=self._bad_lock_streak,
+                bad_codes_progress=self._bad_codes_streak,
                 bad_codes_goal=BAD_CODE_STREAK_TRIGGER,
                 good_rfid_progress=self._good_rfid_since_minigame,
                 good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
@@ -269,7 +269,7 @@ class GameEngine:
             self._difficulty = difficulty
             self._started_at = datetime.now(tz=timezone.utc)
             self._spent_tags.clear()
-            self._bad_lock_streak = 0
+            self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
             snap = self.snapshot()
             assert snap is not None
@@ -282,7 +282,7 @@ class GameEngine:
             self._difficulty = None
             self._started_at = None
             self._spent_tags.clear()
-            self._bad_lock_streak = 0
+            self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
         self._emit({"type": "game_stopped"})
 
@@ -294,6 +294,7 @@ class GameEngine:
 
     def _submit_rfid(self, tag: str) -> CodeAttemptResult:
         bonus_minigame_url: str | None = None
+        punishment_wheel_event: dict | None = None
         with self._lock:
             if not self._active or self._difficulty is None:
                 result = CodeAttemptResult(
@@ -330,8 +331,23 @@ class GameEngine:
             result = self._roll_rfid_outcome(slots, difficulty, rng)
             self._spent_tags.add(tag)
 
+            if result.interaction == "rfid_punishment":
+                self._bad_codes_streak += 1
+                triggered = self._bad_codes_streak >= BAD_CODE_STREAK_TRIGGER
+                if triggered:
+                    self._bad_codes_streak = 0
+                    punishment_wheel_event = self._spin_punishment_wheel()
+                    tail = " The wheel of punishments has spoken."
+                else:
+                    tail = (
+                        f" ({self._bad_codes_streak}/{BAD_CODE_STREAK_TRIGGER} bad codes — "
+                        "the Gamemaster is counting.)"
+                    )
+                result = result.model_copy(update={"message": result.message + tail})
+
             # Predictable minigame: every N "good" RFID rolls (reveal or exhausted; never punishment).
-            if result.interaction in ("rfid_reveal", "rfid_exhausted"):
+            elif result.interaction in ("rfid_reveal", "rfid_exhausted"):
+                self._bad_codes_streak = 0
                 self._good_rfid_since_minigame += 1
                 if self._good_rfid_since_minigame >= MINIGAME_AFTER_GOOD_RFID:
                     self._good_rfid_since_minigame = 0
@@ -340,6 +356,8 @@ class GameEngine:
 
             self._emit_code_result(result)
 
+        if punishment_wheel_event is not None:
+            self._emit(punishment_wheel_event)
         if bonus_minigame_url:
             self._emit(
                 {
@@ -423,7 +441,7 @@ class GameEngine:
                     continue
                 if _matches(slot.kind, submitted, slot.code):
                     slot.solved = True
-                    self._bad_lock_streak = 0
+                    self._bad_codes_streak = 0
                     won = all(s.solved for s in self._active)
                     msg = "Lock opened!"
                     if won:
@@ -438,16 +456,16 @@ class GameEngine:
                     self._emit_code_result(result)
                     return result
 
-            self._bad_lock_streak += 1
-            triggered = self._bad_lock_streak >= BAD_CODE_STREAK_TRIGGER
+            self._bad_codes_streak += 1
+            triggered = self._bad_codes_streak >= BAD_CODE_STREAK_TRIGGER
             if triggered:
-                self._bad_lock_streak = 0
+                self._bad_codes_streak = 0
                 punishment_event = self._spin_punishment_wheel()
 
             tail = (
                 " The wheel of punishments has spoken."
                 if triggered
-                else f" ({self._bad_lock_streak}/{BAD_CODE_STREAK_TRIGGER} bad lock codes — the Gamemaster is counting.)"
+                else f" ({self._bad_codes_streak}/{BAD_CODE_STREAK_TRIGGER} bad codes — the Gamemaster is counting.)"
             )
             result = CodeAttemptResult(
                 ok=False,
