@@ -114,6 +114,12 @@
         log(msg.won ? "Final score <strong>" + msg.score + "</strong>" : "Try again when ready.");
         btnStart.disabled = false;
         sfx(msg.won ? "reactionWin" : "reactionLose");
+        if (window.MinigameReturn && window.MinigameReturn.isForced()) {
+          window.MinigameReturn.scheduleReturn({
+            seconds: 60,
+            headline: msg.won ? "Nice! Reaction Rush cleared." : "Reaction Rush: the Gamemaster won.",
+          });
+        }
         return;
       }
       if (msg.type === "error") {

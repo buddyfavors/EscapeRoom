@@ -16,11 +16,15 @@ from escape_room.game_engine import GameEngine
 from escape_room.models import Difficulty, GameSnapshot
 from escape_room.rfid import RfidKeyboardListener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
+from escape_room.punishments_store import (
+    load_punishments,
+    save_punishments_text,
+    validate_punishments_text,
+)
 from escape_room.minigames.ws_reaction_rush import run_reaction_rush_session
 from escape_room.minigames.ws_whack_mole import run_whack_mole_session
 from escape_room.minigames.ws_rps import run_rps_session
 from escape_room.minigames.ws_simon import run_simon_session
-from escape_room.minigames.ws_hangman import run_hangman_session
 from escape_room.minigames.ws_pattern import run_pattern_session
 from escape_room.storage import load_code_pools, save_code_pools_json, validate_codes_json
 
@@ -37,6 +41,10 @@ class RfidTagsTextBody(BaseModel):
     text: str
 
 
+class PunishmentsTextBody(BaseModel):
+    text: str
+
+
 class GameStartBody(BaseModel):
     difficulty: Difficulty = Difficulty.easy
 
@@ -48,12 +56,15 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         "difficulty": snap.difficulty.value,
         "started_at_iso": snap.started_at_iso,
         "won": snap.won,
+        "bad_streak": snap.bad_streak,
+        "bad_streak_threshold": snap.bad_streak_threshold,
         "locks": [
             {
                 "id": l.id,
                 "kind": l.kind,
                 "solved": l.solved,
                 "clues": list(l.revealed),
+                "fully_revealed": bool(l.revealed) and all(c is not None for c in l.revealed),
             }
             for l in snap.locks
         ],
@@ -134,6 +145,7 @@ async def lifespan(_app: FastAPI):
     state.engine.set_pools(pools)
     tags = load_rfid_tags()
     state.engine.set_rfid_tags(tags)
+    state.engine.set_punishments(load_punishments())
     unsub = state.engine.subscribe(state._schedule_broadcast)
 
     if state.rfid.start():
@@ -187,11 +199,6 @@ async def minigame_simon(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("simon.html", {"request": request})
 
 
-@app.get("/minigames/hangman", response_class=HTMLResponse)
-async def minigame_hangman(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("hangman.html", {"request": request})
-
-
 @app.get("/minigames/pattern", response_class=HTMLResponse)
 async def minigame_pattern(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("pattern.html", {"request": request})
@@ -238,6 +245,31 @@ async def post_rfid_tags_raw(body: RfidTagsTextBody) -> JSONResponse:
     tags = save_rfid_tags_text(body.text)
     state.engine.set_rfid_tags(tags)
     return JSONResponse(content={"ok": True, "count": len(tags.tags)})
+
+
+@app.get("/api/punishments")
+async def get_punishments_raw() -> JSONResponse:
+    from escape_room.config import PUNISHMENTS_FILE
+
+    if not PUNISHMENTS_FILE.exists():
+        default = (
+            "# One punishment per line. Prefixes: 'minigame', 'minigame:<slug>', 'text:<msg>'.\n"
+            "minigame\nminigame\n"
+        )
+        return JSONResponse(content={"text": default, "count": 0})
+    text = PUNISHMENTS_FILE.read_text(encoding="utf-8")
+    entries = state.engine.get_punishments()
+    return JSONResponse(content={"text": text, "count": len(entries)})
+
+
+@app.post("/api/punishments")
+async def post_punishments_raw(body: PunishmentsTextBody) -> JSONResponse:
+    ok, err = validate_punishments_text(body.text)
+    if not ok:
+        raise HTTPException(status_code=400, detail=err)
+    entries = save_punishments_text(body.text)
+    state.engine.set_punishments(entries)
+    return JSONResponse(content={"ok": True, "count": len(entries)})
 
 
 @app.get("/api/game/status")
@@ -313,16 +345,6 @@ async def websocket_simon(ws: WebSocket) -> None:
     await ws.accept()
     try:
         await run_simon_session(ws)
-    except WebSocketDisconnect:
-        pass
-
-
-@app.websocket("/ws/minigame/hangman")
-async def websocket_hangman(ws: WebSocket) -> None:
-    await ws.accept()
-    try:
-        pools = state.engine.get_pools()
-        await run_hangman_session(ws, word_pool=list(pools.letter5))
     except WebSocketDisconnect:
         pass
 

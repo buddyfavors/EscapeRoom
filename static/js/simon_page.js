@@ -116,6 +116,12 @@
         setStatus(msg.won ? "You beat the Gamemaster." : "Gamemaster wins.", msg.won ? "good" : "bad");
         log("Rounds cleared <strong>" + msg.cleared + "</strong>");
         sfx(msg.won ? "genericWin" : "genericLose");
+        if (window.MinigameReturn && window.MinigameReturn.isForced()) {
+          window.MinigameReturn.scheduleReturn({
+            seconds: 60,
+            headline: msg.won ? "Simon says: nice memory." : "Simon: the Gamemaster won.",
+          });
+        }
         return;
       }
       if (msg.type === "error") {

@@ -5,9 +5,10 @@
     <h1>Escape Room</h1>
     <p class="lede">
       Pick a difficulty and launch the run. Each valid RFID scan (10 digits) rolls good or bad —
-      good reveals one character on a random unsolved lock, bad is a Gamemaster punishment.
-      Shorter digit strings try the numeric locks, five letters try a letter lock. Two wrong
-      lock codes in a row and the Gamemaster picks a minigame for you.
+      good reveals one character on a random unsolved lock (~40% of scans come up bad). Shorter
+      digit strings try the numeric locks, five letters try a letter lock. Two wrong lock codes
+      in a row and the <strong>wheel of punishments</strong> spins — good scans can also fire a
+      surprise minigame, at most once per lock.
     </p>
 
     <fieldset class="difficulty">
@@ -32,7 +33,14 @@
         </h1>
         <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
       </div>
-      <div id="progress-pill" class="progress-pill">0 / 0 open</div>
+      <div class="active-pills">
+        <div id="strike-pill" class="strike-pill" title="Bad lock codes until the wheel spins">
+          <span class="strike-label">Strikes</span>
+          <span id="strike-dots" class="strike-dots"></span>
+          <span id="strike-count" class="strike-count">0 / 2</span>
+        </div>
+        <div id="progress-pill" class="progress-pill">0 / 0 open</div>
+      </div>
     </div>
 
     <div id="banner" class="banner" role="status" aria-live="polite"></div>

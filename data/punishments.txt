@@ -1,0 +1,9 @@
+# KnottyBytes Escape Room — Wheel of Punishments
+# One punishment per line. Blank lines and lines starting with '#' are ignored.
+#
+# Special prefixes:
+#   minigame             → the engine picks a random minigame
+#   minigame:<slug>      → forces a specific minigame (reaction-rush | whack-mole | rps | simon | pattern)
+#   text:<message>       → explicit text punishment (same as any un-prefixed line)
+#
+# Anything else is shown as a text punishment on the player display.

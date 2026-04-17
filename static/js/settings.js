@@ -4,8 +4,12 @@ const btnSave = document.getElementById("btn-save");
 const btnReload = document.getElementById("btn-reload");
 const btnSaveRfid = document.getElementById("btn-save-rfid");
 const btnReloadRfid = document.getElementById("btn-reload-rfid");
+const taPun = document.getElementById("punishments-text");
+const btnSavePun = document.getElementById("btn-save-punishments");
+const btnReloadPun = document.getElementById("btn-reload-punishments");
 const saveMsg = document.getElementById("save-msg");
 const saveMsgRfid = document.getElementById("save-msg-rfid");
+const saveMsgPun = document.getElementById("save-msg-punishments");
 const gmPre = document.getElementById("gm-snapshot");
 const btnGm = document.getElementById("btn-refresh-gm");
 
@@ -26,6 +30,13 @@ async function loadRfid() {
   const res = await fetch("/api/rfid-tags");
   const data = await res.json();
   taRfid.value = data.text || "";
+}
+
+async function loadPunishments() {
+  const res = await fetch("/api/punishments");
+  const data = await res.json();
+  if (taPun) taPun.value = data.text || "";
+  return data;
 }
 
 async function postJson(url, body) {
@@ -77,6 +88,41 @@ btnReloadRfid.addEventListener("click", async () => {
   setSaveMsg(saveMsgRfid, "RFID tags reloaded from disk.", true);
 });
 
+if (btnSavePun) {
+  btnSavePun.addEventListener("click", async () => {
+    btnSavePun.disabled = true;
+    try {
+      const data = await postJson("/api/punishments", { text: taPun.value });
+      const count = typeof data.count === "number" ? data.count : null;
+      setSaveMsg(
+        saveMsgPun,
+        count != null
+          ? `Saved ${count} punishment${count === 1 ? "" : "s"} on the wheel.`
+          : "Wheel saved.",
+        true,
+      );
+    } catch (e) {
+      setSaveMsg(saveMsgPun, String(e.message || e), false);
+    } finally {
+      btnSavePun.disabled = false;
+    }
+  });
+}
+
+if (btnReloadPun) {
+  btnReloadPun.addEventListener("click", async () => {
+    const data = await loadPunishments();
+    const count = typeof data.count === "number" ? data.count : null;
+    setSaveMsg(
+      saveMsgPun,
+      count != null
+        ? `Reloaded ${count} punishment${count === 1 ? "" : "s"}.`
+        : "Wheel reloaded from disk.",
+      true,
+    );
+  });
+}
+
 async function refreshGm() {
   const res = await fetch("/api/gm/snapshot");
   const data = await res.json();
@@ -87,4 +133,5 @@ btnGm.addEventListener("click", refreshGm);
 
 loadCodes();
 loadRfid();
+loadPunishments();
 refreshGm();

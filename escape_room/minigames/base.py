@@ -30,12 +30,6 @@ def list_minigames() -> list[MinigameInfo]:
             notes="Play at /minigames/simon — easy = slow pace, extreme = faster + longer + strict.",
         ),
         MinigameInfo(
-            id="hangman",
-            title="Hangman",
-            description="Guess a 5-letter word one letter at a time; tie-in to letter locks.",
-            notes="Play at /minigames/hangman — 6 wrong guesses and the Gamemaster wins.",
-        ),
-        MinigameInfo(
             id="reaction",
             title="Reaction Rush",
             description="Live: random lit button; shrinking reaction window (Web UI + WS).",

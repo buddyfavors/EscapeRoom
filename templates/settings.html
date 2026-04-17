@@ -36,6 +36,25 @@
     <div id="save-msg-rfid" class="banner" role="status"></div>
   </section>
 
+  <section class="panel">
+    <h2>Wheel of punishments</h2>
+    <p class="lede">
+      After <strong>two bad lock codes in a row</strong>, the wheel spins and one line below is
+      chosen at random. Lines starting with <code>minigame</code> launch a minigame (use
+      <code>minigame</code> for random, or <code>minigame:&lt;slug&gt;</code> for a specific one —
+      <code>reaction-rush</code>, <code>whack-mole</code>, <code>rps</code>, <code>simon</code>,
+      <code>pattern</code>). Any other line is shown to the players as a text punishment.
+    </p>
+    <label for="punishments-text" class="label">Punishment wheel</label>
+    <textarea id="punishments-text" class="codes" spellcheck="false"
+      placeholder="minigame&#10;minigame:rps&#10;Do 10 jumping jacks together"></textarea>
+    <div class="actions">
+      <button id="btn-save-punishments" type="button" class="primary">Save wheel</button>
+      <button id="btn-reload-punishments" type="button" class="ghost">Reload wheel</button>
+    </div>
+    <div id="save-msg-punishments" class="banner" role="status"></div>
+  </section>
+
   <section class="panel secondary">
     <h2>GM — live session</h2>
     <p class="muted">Shows active combinations for the running game (keep off the player monitor).</p>
@@ -49,7 +68,8 @@
       <li>RFID device path: set env <code>RFID_DEVICE</code> (default matches your POC reader).</li>
       <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
-      <li>Good / bad roll odds by difficulty: Easy 85/15, Medium 75/25, Hard 65/35.</li>
+      <li>Good / bad roll odds by difficulty: Easy 70/30, Medium 60/40, Hard 50/50.</li>
+      <li>After a good scan there is a small chance (~35%) of a bonus minigame, capped to one surprise per lock over the run.</li>
     </ul>
   </section>
 

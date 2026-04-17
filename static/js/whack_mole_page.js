@@ -144,6 +144,12 @@
             "</strong>"
         );
         btnStart.disabled = false;
+        if (window.MinigameReturn && window.MinigameReturn.isForced()) {
+          window.MinigameReturn.scheduleReturn({
+            seconds: 60,
+            headline: msg.won ? "Crew cleared the moles." : "Whack-a-Mole: the Gamemaster won.",
+          });
+        }
         return;
       }
       if (msg.type === "error") {

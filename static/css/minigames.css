@@ -457,3 +457,115 @@ button.rps-choice:disabled {
     transform: scale(1);
   }
 }
+
+/* ----- Forced minigame (launched by the engine) ----- */
+.mg-forced-ribbon {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  padding: 8px 14px;
+  text-align: center;
+  background: linear-gradient(90deg, rgba(255, 92, 122, 0.55), rgba(124, 92, 255, 0.55));
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+body.mg-forced .topbar {
+  top: 36px;
+}
+
+/* ----- Auto-return overlay shown after forced game ends ----- */
+.mg-return-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(1000px 500px at 50% 30%, rgba(124, 92, 255, 0.22), rgba(11, 15, 20, 0.92) 60%),
+    rgba(11, 15, 20, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+  animation: mg-return-fade 280ms ease-out;
+}
+
+@keyframes mg-return-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mg-return-card {
+  width: min(520px, 90vw);
+  padding: 28px 28px 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(124, 92, 255, 0.4);
+  background: linear-gradient(180deg, #171e2c, #121925);
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+
+.mg-return-kicker {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.8rem;
+}
+
+.mg-return-headline {
+  margin: 8px 0 18px;
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.mg-return-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 8px 0 12px;
+  padding: 10px 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 92, 255, 0.45);
+  background: rgba(124, 92, 255, 0.12);
+  color: #ccd2ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-return-num {
+  font-size: 3.2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+
+.mg-return-unit {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.mg-return-hint {
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.mg-return-skip {
+  border-radius: 10px;
+  border: 1px solid rgba(124, 92, 255, 0.55);
+  background: rgba(124, 92, 255, 0.18);
+  color: #dfe2ff;
+  padding: 10px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mg-return-skip:hover {
+  background: rgba(124, 92, 255, 0.28);
+}

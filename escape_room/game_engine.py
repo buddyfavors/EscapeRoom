@@ -14,15 +14,17 @@ from escape_room.models import (
     LockSlot,
     RfidTagFile,
 )
+from escape_room.punishments_store import PunishmentEntry
 from escape_room.rfid_format import normalize_rfid_tag
 
 
 # Odds that a valid RFID scan is a "good" result (random reveal) vs a "bad"
-# result (Gamemaster punishment). Tuned per difficulty.
+# result (Gamemaster punishment). Tuned per difficulty — user-facing target is
+# roughly 40% bad, with a small easier/harder swing.
 GOOD_SCAN_CHANCE: dict[Difficulty, float] = {
-    Difficulty.easy: 0.85,
-    Difficulty.medium: 0.75,
-    Difficulty.hard: 0.65,
+    Difficulty.easy: 0.70,
+    Difficulty.medium: 0.60,
+    Difficulty.hard: 0.50,
 }
 
 PUNISHMENT_LINES: tuple[str, ...] = (
@@ -32,18 +34,21 @@ PUNISHMENT_LINES: tuple[str, ...] = (
     "The Gamemaster claims that one.",
 )
 
-# Minigame ids the server can force-launch when players scan bad codes twice in a row.
-# Must match the URL slugs registered in main.py.
+# Minigames the "good-code surprise" trigger or the punishment wheel can launch.
+# Must match the URL slugs registered in main.py. (Hangman is currently disabled.)
 FORCED_MINIGAME_IDS: tuple[str, ...] = (
     "reaction-rush",
     "whack-mole",
     "rps",
     "simon",
-    "hangman",
     "pattern",
 )
 
 BAD_CODE_STREAK_TRIGGER = 2
+
+# Chance that a good RFID scan also unlocks a bonus minigame; capped by
+# `_good_minigame_budget` so at most one fires per lock over a run.
+GOOD_SCAN_MINIGAME_CHANCE: float = 0.35
 
 
 # Physical inventory: 4× 3-digit, 2× 5-letter, 4× 4-digit.
@@ -153,11 +158,13 @@ class GameEngine:
         self._lock = threading.RLock()
         self._pools: CodePools = CodePools()
         self._rfid: RfidTagFile = RfidTagFile()
+        self._punishments: list[PunishmentEntry] = []
         self._active: list[LockSlot] | None = None
         self._difficulty: Difficulty | None = None
         self._started_at: datetime | None = None
         self._spent_tags: set[str] = set()
         self._bad_streak: int = 0
+        self._good_minigame_budget: int = 0
         self._listeners: list[Callable[[dict], None]] = []
 
     def set_pools(self, pools: CodePools) -> None:
@@ -167,6 +174,14 @@ class GameEngine:
     def set_rfid_tags(self, tags: RfidTagFile) -> None:
         with self._lock:
             self._rfid = tags
+
+    def set_punishments(self, entries: list[PunishmentEntry]) -> None:
+        with self._lock:
+            self._punishments = list(entries)
+
+    def get_punishments(self) -> list[PunishmentEntry]:
+        with self._lock:
+            return list(self._punishments)
 
     def get_pools(self) -> CodePools:
         with self._lock:
@@ -215,6 +230,8 @@ class GameEngine:
                 locks=locks,
                 started_at_iso=self._started_at.isoformat() if self._started_at else None,
                 won=won,
+                bad_streak=self._bad_streak,
+                bad_streak_threshold=BAD_CODE_STREAK_TRIGGER,
             )
 
     def start(self, difficulty: Difficulty, rng: random.Random | None = None) -> GameSnapshot:
@@ -248,6 +265,8 @@ class GameEngine:
             self._started_at = datetime.now(tz=timezone.utc)
             self._spent_tags.clear()
             self._bad_streak = 0
+            # One bonus-minigame opportunity per lock, fired at random after good scans.
+            self._good_minigame_budget = len(slots)
             snap = self.snapshot()
             assert snap is not None
             self._emit({"type": "game_started", "snapshot": snap.model_dump(mode="json")})
@@ -260,6 +279,7 @@ class GameEngine:
             self._started_at = None
             self._spent_tags.clear()
             self._bad_streak = 0
+            self._good_minigame_budget = 0
         self._emit({"type": "game_stopped"})
 
     def submit_code(self, raw: str) -> CodeAttemptResult:
@@ -269,6 +289,7 @@ class GameEngine:
         return self._submit_lock_combination(raw)
 
     def _submit_rfid(self, tag: str) -> CodeAttemptResult:
+        bonus_minigame_url: str | None = None
         with self._lock:
             if not self._active or self._difficulty is None:
                 result = CodeAttemptResult(
@@ -304,8 +325,31 @@ class GameEngine:
 
             result = self._roll_rfid_outcome(slots, difficulty, rng)
             self._spent_tags.add(tag)
+
+            # Good-scan bonus: once per lock over the whole game, a random
+            # minigame can be launched after a helpful reveal.
+            if (
+                result.ok
+                and result.interaction == "rfid_reveal"
+                and self._good_minigame_budget > 0
+                and rng.random() < GOOD_SCAN_MINIGAME_CHANCE
+            ):
+                self._good_minigame_budget -= 1
+                slug = rng.choice(FORCED_MINIGAME_IDS)
+                bonus_minigame_url = f"/minigames/{slug}?forced=1&reason=bonus"
+
             self._emit_code_result(result)
-            return result
+
+        if bonus_minigame_url:
+            self._emit(
+                {
+                    "type": "forced_minigame",
+                    "url": bonus_minigame_url,
+                    "reason": "good_scan_bonus",
+                    "message": "The Gamemaster smiles — a bonus challenge before you continue.",
+                }
+            )
+        return result
 
     def _roll_rfid_outcome(
         self,
@@ -361,7 +405,7 @@ class GameEngine:
         )
 
     def _submit_lock_combination(self, raw: str) -> CodeAttemptResult:
-        forced_minigame_url: str | None = None
+        punishment_event: dict | None = None
         with self._lock:
             if not self._active:
                 result = CodeAttemptResult(ok=False, message="No active game.", interaction="lock")
@@ -398,11 +442,10 @@ class GameEngine:
             triggered = self._bad_streak >= BAD_CODE_STREAK_TRIGGER
             if triggered:
                 self._bad_streak = 0
-                minigame_id = random.choice(FORCED_MINIGAME_IDS)
-                forced_minigame_url = f"/minigames/{minigame_id}?forced=1"
+                punishment_event = self._spin_punishment_wheel()
 
             tail = (
-                " The Gamemaster has picked a challenge for you."
+                " The wheel of punishments has spoken."
                 if triggered
                 else f" (strike {self._bad_streak}/{BAD_CODE_STREAK_TRIGGER})"
             )
@@ -413,12 +456,34 @@ class GameEngine:
             )
             self._emit_code_result(result)
 
-        if forced_minigame_url:
-            self._emit(
-                {
-                    "type": "forced_minigame",
-                    "url": forced_minigame_url,
-                    "reason": "2_bad_codes",
-                }
-            )
+        if punishment_event is not None:
+            self._emit(punishment_event)
         return result
+
+    def _spin_punishment_wheel(self) -> dict:
+        """
+        Pick a random entry from the configured wheel. Falls back to a random
+        minigame if the wheel is empty. Returns the event dict to emit.
+        """
+        rng = random.Random()
+        entries = list(self._punishments) if self._punishments else []
+        entry = rng.choice(entries) if entries else None
+
+        if entry is None or entry.kind == "minigame":
+            slug_target = entry.target if entry else "random"
+            if slug_target == "random" or slug_target not in FORCED_MINIGAME_IDS:
+                slug = rng.choice(FORCED_MINIGAME_IDS)
+            else:
+                slug = slug_target
+            return {
+                "type": "forced_minigame",
+                "url": f"/minigames/{slug}?forced=1&reason=punishment",
+                "reason": "punishment_wheel",
+                "message": "The Gamemaster locks the room — a minigame begins…",
+            }
+
+        return {
+            "type": "punishment_text",
+            "reason": "punishment_wheel",
+            "message": entry.message,
+        }

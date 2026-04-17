@@ -114,6 +114,12 @@
         setStatus(msg.won ? "You cracked the pattern!" : "Gamemaster wins.", msg.won ? "good" : "bad");
         log("Rounds cleared <strong>" + msg.cleared + "</strong>");
         sfx(msg.won ? "genericWin" : "genericLose");
+        if (window.MinigameReturn && window.MinigameReturn.isForced()) {
+          window.MinigameReturn.scheduleReturn({
+            seconds: 60,
+            headline: msg.won ? "Pattern cracked — nice." : "Pattern: the Gamemaster won.",
+          });
+        }
         return;
       }
       if (msg.type === "error") {

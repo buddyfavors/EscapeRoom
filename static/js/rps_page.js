@@ -176,6 +176,12 @@
         btnStart.disabled = false;
         setStatus(msg.won ? "You took the match!" : "Gamemaster wins the match.", msg.won ? "good" : "bad");
         sfx(msg.won ? "genericWin" : "genericLose");
+        if (window.MinigameReturn && window.MinigameReturn.isForced()) {
+          window.MinigameReturn.scheduleReturn({
+            seconds: 60,
+            headline: msg.won ? "You beat the Gamemaster at RPS." : "RPS: the Gamemaster won.",
+          });
+        }
         return;
       }
       if (msg.type === "error") {
