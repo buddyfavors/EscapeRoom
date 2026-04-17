@@ -55,6 +55,13 @@
       <button id="btn-reload-punishments" type="button" class="ghost">Reload wheel</button>
     </div>
     <div id="save-msg-punishments" class="banner" role="status"></div>
+    {% if not minigames_enabled %}
+      <p class="muted">
+        Minigames are <strong>off</strong> (LED board not wired). Wheel lines that say
+        <code>minigame</code> still work — the engine applies a text punishment instead of launching a game.
+        Re-enable with env <code>MINIGAMES_ENABLED=1</code> and restart.
+      </p>
+    {% endif %}
   </section>
 
   <section class="panel secondary">
@@ -71,7 +78,13 @@
       <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
       <li>Good / bad roll odds by difficulty: Easy 70/30, Medium 60/40, Hard 50/50.</li>
-      <li>After every <strong>three</strong> good RFID rolls (bad punishment rolls do not count), a minigame is forced.</li>
+      {% if minigames_enabled %}
+        <li>After every <strong>three</strong> good RFID rolls (bad punishment rolls do not count), a minigame is forced.</li>
+      {% endif %}
+      <li>
+        Arcade minigames: off by default. Set <code>MINIGAMES_ENABLED=1</code> (or <code>true</code>) before
+        <code>python run.py</code> when the LED button grid is ready.
+      </li>
     </ul>
   </section>
 

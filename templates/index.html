@@ -9,7 +9,11 @@
       Shorter digit strings try the numeric locks, five letters try a letter lock. Three
       <strong>bad codes</strong> in a row — wrong lock combinations <em>or</em> bad RFID rolls — spin
       the <strong>wheel of punishments</strong>. A good RFID clue or opening a lock resets the bad streak.
-      Every <strong>three</strong> good RFID rolls (bad rolls do not count) forces a minigame.
+      {% if minigames_enabled %}
+        Every <strong>three</strong> good RFID rolls (bad rolls do not count) forces a minigame.
+      {% else %}
+        Arcade minigames are <strong>off</strong> until the LED board is ready (only clues &amp; locks run).
+      {% endif %}
     </p>
 
     <fieldset class="difficulty">
@@ -21,7 +25,9 @@
 
     <div class="actions">
       <button id="btn-play" type="button" class="primary big">Start run</button>
-      <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
+      {% if minigames_enabled %}
+        <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
+      {% endif %}
     </div>
   </section>
 
@@ -44,20 +50,24 @@
           <span id="bad-codes-dots" class="strike-dots"></span>
           <span id="bad-codes-count" class="strike-count">0 / 3</span>
         </div>
-        <div
-          id="clue-minigame-pill"
-          class="strike-pill clue-pill"
-          title="Each time a known RFID tag rolls &quot;good&quot; (clue or lucky empty roll). Punishment rolls do not advance this. At 3/3, a minigame opens next."
-        >
-          <span class="strike-label">Good codes</span>
-          <span id="clue-dots" class="strike-dots"></span>
-          <span id="clue-count" class="strike-count">0 / 3</span>
-        </div>
+        {% if minigames_enabled %}
+          <div
+            id="clue-minigame-pill"
+            class="strike-pill clue-pill"
+            title="Each time a known RFID tag rolls &quot;good&quot; (clue or lucky empty roll). Punishment rolls do not advance this. At 3/3, a minigame opens next."
+          >
+            <span class="strike-label">Good codes</span>
+            <span id="clue-dots" class="strike-dots"></span>
+            <span id="clue-count" class="strike-count">0 / 3</span>
+          </div>
+        {% endif %}
       </div>
     </div>
     <p class="muted meter-hint">
       <strong>Bad codes</strong> — wrong lock tries <em>or</em> bad RFID punishments in a row; good RFID clues and opened locks reset the streak; at 3/3 the wheel spins.
-      <strong>Good codes</strong> — each good RFID roll advances 1 (bad rolls do not); at 3/3 a minigame opens next.
+      {% if minigames_enabled %}
+        <strong>Good codes</strong> — each good RFID roll advances 1 (bad rolls do not); at 3/3 a minigame opens next.
+      {% endif %}
     </p>
 
     <div id="banner" class="banner" role="status" aria-live="polite"></div>

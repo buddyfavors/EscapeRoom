@@ -12,7 +12,9 @@
       <div class="brand">KnottyBytes Escape Room</div>
       <nav class="nav">
         <a href="/">Play</a>
-        <a href="/minigames">Minigames</a>
+        {% if minigames_enabled %}
+          <a href="/minigames">Minigames</a>
+        {% endif %}
         <a href="/settings">Settings</a>
         <button id="nav-end-game" type="button" class="nav-danger" hidden>End game</button>
       </nav>

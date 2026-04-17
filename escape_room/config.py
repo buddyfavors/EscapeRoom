@@ -17,3 +17,11 @@ RFID_DEVICE_PATH = os.environ.get(
 
 WEB_HOST = os.environ.get("ESCAPE_ROOM_HOST", "0.0.0.0")
 WEB_PORT = int(os.environ.get("ESCAPE_ROOM_PORT", "8000"))
+
+# Arcade / LED minigames (reaction rush, Simon, etc.). Set MINIGAMES_ENABLED=1 to turn back on.
+MINIGAMES_ENABLED = os.environ.get("MINIGAMES_ENABLED", "0").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)

@@ -78,6 +78,10 @@ class GameSnapshot(BaseModel):
         default=3,
         description="After this many good RFID rolls, a minigame is forced.",
     )
+    minigames_enabled: bool = Field(
+        default=True,
+        description="When false, no minigames are launched (LED board not wired).",
+    )
 
 
 class RfidTagFile(BaseModel):

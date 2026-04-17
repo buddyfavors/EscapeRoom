@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from escape_room.config import RFID_DEVICE_PATH, ROOT_DIR
+from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
 from escape_room.models import Difficulty, GameSnapshot
 from escape_room.rfid import RfidKeyboardListener
@@ -31,6 +31,13 @@ from escape_room.storage import load_code_pools, save_code_pools_json, validate_
 logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates(directory=str(ROOT_DIR / "templates"))
+
+
+def _html(request: Request, name: str) -> HTMLResponse:
+    return templates.TemplateResponse(
+        name,
+        {"request": request, "minigames_enabled": MINIGAMES_ENABLED},
+    )
 
 
 class CodesTextBody(BaseModel):
@@ -60,6 +67,7 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         "bad_codes_goal": snap.bad_codes_goal,
         "good_rfid_progress": snap.good_rfid_progress,
         "good_rfid_goal": snap.good_rfid_goal,
+        "minigames_enabled": snap.minigames_enabled,
         "locks": [
             {
                 "id": l.id,
@@ -168,42 +176,54 @@ app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="stat
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("index.html", {"request": request})
+    return _html(request, "index.html")
 
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("settings.html", {"request": request})
+    return _html(request, "settings.html")
 
 
 @app.get("/minigames", response_class=HTMLResponse)
 async def minigames_hub(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("minigames.html", {"request": request})
+    if not MINIGAMES_ENABLED:
+        return _html(request, "minigames_disabled.html")
+    return _html(request, "minigames.html")
 
 
 @app.get("/minigames/reaction-rush", response_class=HTMLResponse)
 async def minigame_reaction_rush(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("reaction_rush.html", {"request": request})
+    if not MINIGAMES_ENABLED:
+        return _html(request, "minigames_disabled.html")
+    return _html(request, "reaction_rush.html")
 
 
 @app.get("/minigames/whack-mole", response_class=HTMLResponse)
 async def minigame_whack_mole(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("whack_mole.html", {"request": request})
+    if not MINIGAMES_ENABLED:
+        return _html(request, "minigames_disabled.html")
+    return _html(request, "whack_mole.html")
 
 
 @app.get("/minigames/rps", response_class=HTMLResponse)
 async def minigame_rps(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("rps.html", {"request": request})
+    if not MINIGAMES_ENABLED:
+        return _html(request, "minigames_disabled.html")
+    return _html(request, "rps.html")
 
 
 @app.get("/minigames/simon", response_class=HTMLResponse)
 async def minigame_simon(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("simon.html", {"request": request})
+    if not MINIGAMES_ENABLED:
+        return _html(request, "minigames_disabled.html")
+    return _html(request, "simon.html")
 
 
 @app.get("/minigames/pattern", response_class=HTMLResponse)
 async def minigame_pattern(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("pattern.html", {"request": request})
+    if not MINIGAMES_ENABLED:
+        return _html(request, "minigames_disabled.html")
+    return _html(request, "pattern.html")
 
 
 @app.get("/api/codes")
@@ -310,6 +330,8 @@ async def game_stop() -> JSONResponse:
 
 @app.get("/api/minigames")
 async def minigames_list() -> JSONResponse:
+    if not MINIGAMES_ENABLED:
+        return JSONResponse(content=[])
     from escape_room.minigames import list_minigames
 
     return JSONResponse(
@@ -320,6 +342,9 @@ async def minigames_list() -> JSONResponse:
 @app.websocket("/ws/minigame/reaction-rush")
 async def websocket_reaction_rush(ws: WebSocket) -> None:
     await ws.accept()
+    if not MINIGAMES_ENABLED:
+        await ws.close(code=4000)
+        return
     try:
         await run_reaction_rush_session(ws)
     except WebSocketDisconnect:
@@ -329,6 +354,9 @@ async def websocket_reaction_rush(ws: WebSocket) -> None:
 @app.websocket("/ws/minigame/whack-mole")
 async def websocket_whack_mole(ws: WebSocket) -> None:
     await ws.accept()
+    if not MINIGAMES_ENABLED:
+        await ws.close(code=4000)
+        return
     try:
         await run_whack_mole_session(ws)
     except WebSocketDisconnect:
@@ -338,6 +366,9 @@ async def websocket_whack_mole(ws: WebSocket) -> None:
 @app.websocket("/ws/minigame/rps")
 async def websocket_rps(ws: WebSocket) -> None:
     await ws.accept()
+    if not MINIGAMES_ENABLED:
+        await ws.close(code=4000)
+        return
     try:
         await run_rps_session(ws)
     except WebSocketDisconnect:
@@ -347,6 +378,9 @@ async def websocket_rps(ws: WebSocket) -> None:
 @app.websocket("/ws/minigame/simon")
 async def websocket_simon(ws: WebSocket) -> None:
     await ws.accept()
+    if not MINIGAMES_ENABLED:
+        await ws.close(code=4000)
+        return
     try:
         await run_simon_session(ws)
     except WebSocketDisconnect:
@@ -356,6 +390,9 @@ async def websocket_simon(ws: WebSocket) -> None:
 @app.websocket("/ws/minigame/pattern")
 async def websocket_pattern(ws: WebSocket) -> None:
     await ws.accept()
+    if not MINIGAMES_ENABLED:
+        await ws.close(code=4000)
+        return
     try:
         await run_pattern_session(ws)
     except WebSocketDisconnect:

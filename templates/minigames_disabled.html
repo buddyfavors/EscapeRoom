@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Minigames — offline{% endblock %}
+{% block content %}
+  <section class="panel kiosk-hero">
+    <h1>Arcade offline</h1>
+    <p class="lede">
+      Button-board minigames are turned off until the LED hardware is wired. RFID clues, lock
+      codes, bad-code streaks, and the text wheel of punishments still run normally — only the
+      on-screen arcade challenges are paused.
+    </p>
+    <p class="muted">
+      To re-enable later, set environment variable <code>MINIGAMES_ENABLED=1</code> (or
+      <code>true</code>) before starting the server, then restart.
+    </p>
+    <p class="actions">
+      <a href="/" class="nav-link-hint">← Back to play</a>
+    </p>
+  </section>
+{% endblock %}

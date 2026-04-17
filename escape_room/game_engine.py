@@ -14,6 +14,7 @@ from escape_room.models import (
     LockSlot,
     RfidTagFile,
 )
+from escape_room.config import MINIGAMES_ENABLED
 from escape_room.punishments_store import PunishmentEntry
 from escape_room.rfid_format import normalize_rfid_tag
 
@@ -50,8 +51,16 @@ FORCED_MINIGAME_IDS: tuple[str, ...] = (
 
 BAD_CODE_STREAK_TRIGGER = 3
 
-# After this many "good" RFID rolls (not punishment), force a minigame.
+# After this many "good" RFID rolls (not punishment), force a minigame (when MINIGAMES_ENABLED).
 MINIGAME_AFTER_GOOD_RFID = 3
+
+# When the wheel lands on a minigame but the arcade is disabled, use one of these instead.
+WHEEL_MINIGAME_DISABLED_LINES: tuple[str, ...] = (
+    "The LED board is dark — the Gamemaster orders twenty jumping jacks, counted loud.",
+    "No buttons to bully you tonight — freeze for sixty seconds while the Gamemaster circles.",
+    "Arcade offline — everyone owes the Gamemaster ten perfect push-ups before the next clue.",
+    "The grid is asleep — trade a minigame for silence: nobody speaks until the Gamemaster snaps.",
+)
 
 
 # Physical inventory: 4× 3-digit, 2× 5-letter, 4× 4-digit.
@@ -237,6 +246,7 @@ class GameEngine:
                 bad_codes_goal=BAD_CODE_STREAK_TRIGGER,
                 good_rfid_progress=self._good_rfid_since_minigame,
                 good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
+                minigames_enabled=MINIGAMES_ENABLED,
             )
 
     def start(self, difficulty: Difficulty, rng: random.Random | None = None) -> GameSnapshot:
@@ -345,14 +355,17 @@ class GameEngine:
                     )
                 result = result.model_copy(update={"message": result.message + tail})
 
-            # Predictable minigame: every N "good" RFID rolls (reveal or exhausted; never punishment).
+            # Predictable minigame: every N good RFID rolls (only when arcade minigames are enabled).
             elif result.interaction in ("rfid_reveal", "rfid_exhausted"):
                 self._bad_codes_streak = 0
-                self._good_rfid_since_minigame += 1
-                if self._good_rfid_since_minigame >= MINIGAME_AFTER_GOOD_RFID:
+                if MINIGAMES_ENABLED:
+                    self._good_rfid_since_minigame += 1
+                    if self._good_rfid_since_minigame >= MINIGAME_AFTER_GOOD_RFID:
+                        self._good_rfid_since_minigame = 0
+                        slug = rng.choice(FORCED_MINIGAME_IDS)
+                        bonus_minigame_url = f"/minigames/{slug}?forced=1&reason=three_clues"
+                else:
                     self._good_rfid_since_minigame = 0
-                    slug = rng.choice(FORCED_MINIGAME_IDS)
-                    bonus_minigame_url = f"/minigames/{slug}?forced=1&reason=three_clues"
 
             self._emit_code_result(result)
 
@@ -488,6 +501,12 @@ class GameEngine:
         entry = rng.choice(entries) if entries else None
 
         if entry is None or entry.kind == "minigame":
+            if not MINIGAMES_ENABLED:
+                return {
+                    "type": "punishment_text",
+                    "reason": "punishment_wheel",
+                    "message": rng.choice(WHEEL_MINIGAME_DISABLED_LINES),
+                }
             slug_target = entry.target if entry else "random"
             if slug_target == "random" or slug_target not in FORCED_MINIGAME_IDS:
                 slug = rng.choice(FORCED_MINIGAME_IDS)
