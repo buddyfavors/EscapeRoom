@@ -244,9 +244,11 @@ async def post_rfid_tags_raw(body: RfidTagsTextBody) -> JSONResponse:
     ok, err = validate_rfid_tags_text(body.text)
     if not ok:
         raise HTTPException(status_code=400, detail=err)
-    tags = save_rfid_tags_text(body.text)
+    tags, duplicates_removed = save_rfid_tags_text(body.text)
     state.engine.set_rfid_tags(tags)
-    return JSONResponse(content={"ok": True, "count": len(tags.tags)})
+    return JSONResponse(
+        content={"ok": True, "count": len(tags.tags), "duplicates_removed": duplicates_removed}
+    )
 
 
 @app.get("/api/punishments")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
@@ -40,11 +41,16 @@ class RfidKeyboardListener:
     Runs in a background thread; calls on_submit_buffer when Enter is pressed.
     """
 
+    # Ignore the same buffer twice in a row within this window (reader double-fires Enter).
+    _DEDUPE_S = 0.85
+
     def __init__(self, device_path: str, on_submit_buffer: DigitHandler) -> None:
         self._device_path = device_path
         self._on_submit = on_submit_buffer
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
+        self._last_submit: str | None = None
+        self._last_submit_mono: float = 0.0
 
     def start(self) -> bool:
         if InputDevice is None:
@@ -82,8 +88,18 @@ class RfidKeyboardListener:
                 if event.code == ecodes.KEY_ENTER:
                     submitted = buffer
                     buffer = ""
-                    if submitted:
-                        self._on_submit(submitted)
+                    if not submitted:
+                        continue
+                    now = time.monotonic()
+                    if (
+                        submitted == self._last_submit
+                        and (now - self._last_submit_mono) < self._DEDUPE_S
+                    ):
+                        logger.debug("RFID duplicate submit suppressed: %s", submitted[:4] + "…")
+                        continue
+                    self._last_submit = submitted
+                    self._last_submit_mono = now
+                    self._on_submit(submitted)
         finally:
             try:
                 dev.close()

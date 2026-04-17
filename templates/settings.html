@@ -25,7 +25,9 @@
       <code>#</code> are ignored. When a listed tag is scanned the engine randomly decides whether it's
       a <strong>good</strong> scan (reveals one character on a random unsolved lock) or a
       <strong>bad</strong> scan (Gamemaster punishment). Harder difficulties bias the roll toward
-      bad. Each tag can be used once per run.
+      bad. Each tag can be used once per run. <strong>Save tags</strong> removes duplicate lines
+      (same ID listed twice) and reloads the editor so you only see unique IDs. On the Pi, the
+      reader sometimes fires twice in a row — the listener drops identical scans within about a second.
     </p>
     <label for="rfid-text" class="label">RFID tag list</label>
     <textarea id="rfid-text" class="codes" spellcheck="false" placeholder="0011182827&#10;0004473485"></textarea>

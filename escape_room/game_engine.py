@@ -308,7 +308,7 @@ class GameEngine:
             if tag in self._spent_tags:
                 result = CodeAttemptResult(
                     ok=False,
-                    message="That badge was already used this game.",
+                    message="Already scanned — that tag is spent for this run. Try another badge.",
                     interaction="rfid_spent",
                 )
                 self._emit_code_result(result)

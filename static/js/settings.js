@@ -75,7 +75,14 @@ btnSaveRfid.addEventListener("click", async () => {
   try {
     const data = await postJson("/api/rfid-tags", { text: taRfid.value });
     const count = typeof data.count === "number" ? data.count : null;
-    setSaveMsg(saveMsgRfid, count != null ? `Saved ${count} tag${count === 1 ? "" : "s"}.` : "RFID tags saved.", true);
+    const removed = typeof data.duplicates_removed === "number" ? data.duplicates_removed : 0;
+    let msg =
+      count != null ? `Saved ${count} unique tag${count === 1 ? "" : "s"}.` : "RFID tags saved.";
+    if (removed > 0) {
+      msg += ` Removed ${removed} duplicate line${removed === 1 ? "" : "s"} from the list.`;
+    }
+    setSaveMsg(saveMsgRfid, msg, true);
+    if (removed > 0) await loadRfid();
   } catch (e) {
     setSaveMsg(saveMsgRfid, String(e.message || e), false);
   } finally {
