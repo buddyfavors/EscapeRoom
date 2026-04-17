@@ -5,10 +5,10 @@
     <h1>Escape Room</h1>
     <p class="lede">
       Pick a difficulty and launch the run. Each valid RFID scan (10 digits) rolls good or bad —
-      good reveals one character on a random unsolved lock (~40% of scans come up bad). Shorter
-      digit strings try the numeric locks, five letters try a letter lock. Two wrong lock codes
-      in a row and the <strong>wheel of punishments</strong> spins — good scans can also fire a
-      surprise minigame, at most once per lock.
+      good reveals one character on a random unsolved lock (~40% of scans come up bad on Medium).
+      Shorter digit strings try the numeric locks, five letters try a letter lock. Two wrong
+      <em>lock combinations</em> in a row (not RFID) spin the <strong>wheel of punishments</strong>.
+      Every <strong>three</strong> good RFID rolls (bad rolls do not count) forces a minigame.
     </p>
 
     <fieldset class="difficulty">
@@ -34,14 +34,30 @@
         <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
       </div>
       <div class="active-pills">
-        <div id="strike-pill" class="strike-pill" title="Bad lock codes until the wheel spins">
-          <span class="strike-label">Strikes</span>
-          <span id="strike-dots" class="strike-dots"></span>
-          <span id="strike-count" class="strike-count">0 / 2</span>
+        <div
+          id="punishment-pill"
+          class="strike-pill"
+          title="Wrong combination attempts at the locks (3-digit, 4-digit, or 5-letter codes). RFID badge scans do not change this. At the threshold, the wheel of punishments spins."
+        >
+          <span class="strike-label">Wheel</span>
+          <span id="punishment-dots" class="strike-dots"></span>
+          <span id="punishment-count" class="strike-count">0 / 2</span>
         </div>
-        <div id="progress-pill" class="progress-pill">0 / 0 open</div>
+        <div
+          id="clue-minigame-pill"
+          class="strike-pill clue-pill"
+          title="Each time a known RFID tag rolls &quot;good&quot; (clue or lucky empty roll). Punishment rolls do not advance this. At 3/3, a minigame opens next."
+        >
+          <span class="strike-label">Good codes</span>
+          <span id="clue-dots" class="strike-dots"></span>
+          <span id="clue-count" class="strike-count">0 / 3</span>
+        </div>
       </div>
     </div>
+    <p class="muted meter-hint">
+      <strong>Wheel</strong> — wrong <em>lock</em> combinations in a row (RFID does not count).
+      <strong>Good codes</strong> — each good RFID roll advances 1 (bad rolls do not); at 3/3 a minigame opens next.
+    </p>
 
     <div id="banner" class="banner" role="status" aria-live="polite"></div>
 

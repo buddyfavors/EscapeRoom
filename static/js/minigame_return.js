@@ -10,7 +10,7 @@
   }
 
   function reasonLabel() {
-    if (reason === "bonus") return "bonus";
+    if (reason === "bonus" || reason === "three_clues") return "scheduled";
     return "punishment";
   }
 
@@ -52,7 +52,9 @@
     if (!isForced()) return;
     opts = opts || {};
     const seconds = Math.max(5, Math.floor(opts.seconds || 60));
-    const headline = opts.headline || (reason === "bonus" ? "Nice run!" : "Game over.");
+    const headline =
+      opts.headline ||
+      (reason === "three_clues" || reason === "bonus" ? "Nice run!" : "Game over.");
     ensureOverlay();
     if (headlineEl) headlineEl.textContent = headline;
     let remaining = seconds;
@@ -79,9 +81,11 @@
     const ribbon = document.createElement("div");
     ribbon.className = "mg-forced-ribbon";
     ribbon.textContent =
-      reason === "bonus"
-        ? "Bonus challenge — finish to return to the escape room."
-        : "Gamemaster challenge — finish to return to the escape room.";
+      reason === "three_clues"
+        ? "Scheduled minigame (after 3 good RFID codes) — finish to return to the escape room."
+        : reason === "bonus"
+          ? "Bonus challenge — finish to return to the escape room."
+          : "Gamemaster challenge — finish to return to the escape room.";
     document.body.appendChild(ribbon);
   }
 

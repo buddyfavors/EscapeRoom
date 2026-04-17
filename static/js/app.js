@@ -4,11 +4,13 @@ const btnPlay = document.getElementById("btn-play");
 const overviewView = document.getElementById("overview-view");
 const activeView = document.getElementById("active-view");
 const activeDifficulty = document.getElementById("active-difficulty");
-const progressPill = document.getElementById("progress-pill");
 const wonBadge = document.getElementById("won-badge");
-const strikePill = document.getElementById("strike-pill");
-const strikeDots = document.getElementById("strike-dots");
-const strikeCount = document.getElementById("strike-count");
+const punishmentPill = document.getElementById("punishment-pill");
+const punishmentDots = document.getElementById("punishment-dots");
+const punishmentCount = document.getElementById("punishment-count");
+const clueMinigamePill = document.getElementById("clue-minigame-pill");
+const clueDots = document.getElementById("clue-dots");
+const clueCount = document.getElementById("clue-count");
 
 function selectedDifficulty() {
   const el = document.querySelector('input[name="difficulty"]:checked');
@@ -39,20 +41,36 @@ function lockStateLabel(lock) {
   return "LOCKED";
 }
 
-function renderStrikes(snap) {
-  if (!strikePill) return;
+function renderPunishmentMeter(snap) {
+  if (!punishmentPill) return;
   const threshold = Math.max(1, Number(snap && snap.bad_streak_threshold) || 2);
   const current = Math.max(0, Number(snap && snap.bad_streak) || 0);
-  if (strikeCount) strikeCount.textContent = `${current} / ${threshold}`;
-  if (strikeDots) {
+  if (punishmentCount) punishmentCount.textContent = `${current} / ${threshold}`;
+  if (punishmentDots) {
     const dots = [];
     for (let i = 0; i < threshold; i += 1) {
       const lit = i < current ? "lit" : "";
       dots.push(`<span class="strike-dot ${lit}"></span>`);
     }
-    strikeDots.innerHTML = dots.join("");
+    punishmentDots.innerHTML = dots.join("");
   }
-  strikePill.classList.toggle("danger", current > 0 && current >= threshold - 1);
+  punishmentPill.classList.toggle("danger", current > 0 && current >= threshold - 1);
+}
+
+function renderClueMinigameMeter(snap) {
+  if (!clueMinigamePill) return;
+  const goal = Math.max(1, Number(snap && snap.good_rfid_goal) || 3);
+  const progress = Math.max(0, Math.min(goal, Number(snap && snap.good_rfid_progress) || 0));
+  if (clueCount) clueCount.textContent = `${progress} / ${goal}`;
+  if (clueDots) {
+    const dots = [];
+    for (let i = 0; i < goal; i += 1) {
+      const lit = i < progress ? "lit clue-dot-lit" : "";
+      dots.push(`<span class="strike-dot ${lit}"></span>`);
+    }
+    clueDots.innerHTML = dots.join("");
+  }
+  clueMinigamePill.classList.toggle("ready", progress >= goal - 1 && goal > 0);
 }
 
 function setActiveView(snap) {
@@ -62,21 +80,16 @@ function setActiveView(snap) {
   if (window.NavSetGameActive) window.NavSetGameActive(active);
   if (!active) {
     if (locksEl) locksEl.innerHTML = "";
-    if (progressPill) progressPill.textContent = "0 / 0 open";
     if (wonBadge) wonBadge.hidden = true;
-    renderStrikes(null);
+    renderPunishmentMeter(null);
+    renderClueMinigameMeter(null);
     return;
   }
-  renderStrikes(snap);
+  renderPunishmentMeter(snap);
+  renderClueMinigameMeter(snap);
   if (activeDifficulty) {
     const d = (snap.difficulty || "").toString();
     activeDifficulty.textContent = d ? "— " + d[0].toUpperCase() + d.slice(1) : "";
-  }
-  const total = snap.locks.length;
-  const opened = snap.locks.filter((l) => l.solved).length;
-  if (progressPill) {
-    progressPill.textContent = opened + " / " + total + " open";
-    progressPill.classList.toggle("good", opened === total && total > 0);
   }
   if (wonBadge) {
     const escaped = snap.won === true || snap.won === "true";
@@ -159,11 +172,12 @@ function applyWsMessage(msg) {
     return;
   }
   if (msg.type === "forced_minigame" && msg.url) {
-    const tone = msg.reason === "good_scan_bonus" ? "ok" : "bad";
+    const scheduled = msg.reason === "three_clues" || msg.reason === "good_scan_bonus";
+    const tone = scheduled ? "ok" : "bad";
     const text =
       msg.message ||
-      (msg.reason === "good_scan_bonus"
-        ? "The Gamemaster smiles — a bonus challenge before you continue."
+      (scheduled
+        ? "Three good RFID codes — time for a minigame."
         : "The Gamemaster locks the room — a minigame begins…");
     setBanner(text, tone);
     window.setTimeout(() => {

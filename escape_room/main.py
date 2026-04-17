@@ -58,6 +58,8 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         "won": snap.won,
         "bad_streak": snap.bad_streak,
         "bad_streak_threshold": snap.bad_streak_threshold,
+        "good_rfid_progress": snap.good_rfid_progress,
+        "good_rfid_goal": snap.good_rfid_goal,
         "locks": [
             {
                 "id": l.id,

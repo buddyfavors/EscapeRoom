@@ -46,9 +46,8 @@ FORCED_MINIGAME_IDS: tuple[str, ...] = (
 
 BAD_CODE_STREAK_TRIGGER = 2
 
-# Chance that a good RFID scan also unlocks a bonus minigame; capped by
-# `_good_minigame_budget` so at most one fires per lock over a run.
-GOOD_SCAN_MINIGAME_CHANCE: float = 0.35
+# After this many "good" RFID rolls (not punishment), force a minigame.
+MINIGAME_AFTER_GOOD_RFID = 3
 
 
 # Physical inventory: 4× 3-digit, 2× 5-letter, 4× 4-digit.
@@ -164,7 +163,7 @@ class GameEngine:
         self._started_at: datetime | None = None
         self._spent_tags: set[str] = set()
         self._bad_streak: int = 0
-        self._good_minigame_budget: int = 0
+        self._good_rfid_since_minigame: int = 0
         self._listeners: list[Callable[[dict], None]] = []
 
     def set_pools(self, pools: CodePools) -> None:
@@ -232,6 +231,8 @@ class GameEngine:
                 won=won,
                 bad_streak=self._bad_streak,
                 bad_streak_threshold=BAD_CODE_STREAK_TRIGGER,
+                good_rfid_progress=self._good_rfid_since_minigame,
+                good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
             )
 
     def start(self, difficulty: Difficulty, rng: random.Random | None = None) -> GameSnapshot:
@@ -265,8 +266,7 @@ class GameEngine:
             self._started_at = datetime.now(tz=timezone.utc)
             self._spent_tags.clear()
             self._bad_streak = 0
-            # One bonus-minigame opportunity per lock, fired at random after good scans.
-            self._good_minigame_budget = len(slots)
+            self._good_rfid_since_minigame = 0
             snap = self.snapshot()
             assert snap is not None
             self._emit({"type": "game_started", "snapshot": snap.model_dump(mode="json")})
@@ -279,7 +279,7 @@ class GameEngine:
             self._started_at = None
             self._spent_tags.clear()
             self._bad_streak = 0
-            self._good_minigame_budget = 0
+            self._good_rfid_since_minigame = 0
         self._emit({"type": "game_stopped"})
 
     def submit_code(self, raw: str) -> CodeAttemptResult:
@@ -326,17 +326,13 @@ class GameEngine:
             result = self._roll_rfid_outcome(slots, difficulty, rng)
             self._spent_tags.add(tag)
 
-            # Good-scan bonus: once per lock over the whole game, a random
-            # minigame can be launched after a helpful reveal.
-            if (
-                result.ok
-                and result.interaction == "rfid_reveal"
-                and self._good_minigame_budget > 0
-                and rng.random() < GOOD_SCAN_MINIGAME_CHANCE
-            ):
-                self._good_minigame_budget -= 1
-                slug = rng.choice(FORCED_MINIGAME_IDS)
-                bonus_minigame_url = f"/minigames/{slug}?forced=1&reason=bonus"
+            # Predictable minigame: every N "good" RFID rolls (reveal or exhausted; never punishment).
+            if result.interaction in ("rfid_reveal", "rfid_exhausted"):
+                self._good_rfid_since_minigame += 1
+                if self._good_rfid_since_minigame >= MINIGAME_AFTER_GOOD_RFID:
+                    self._good_rfid_since_minigame = 0
+                    slug = rng.choice(FORCED_MINIGAME_IDS)
+                    bonus_minigame_url = f"/minigames/{slug}?forced=1&reason=three_clues"
 
             self._emit_code_result(result)
 
@@ -345,8 +341,8 @@ class GameEngine:
                 {
                     "type": "forced_minigame",
                     "url": bonus_minigame_url,
-                    "reason": "good_scan_bonus",
-                    "message": "The Gamemaster smiles — a bonus challenge before you continue.",
+                    "reason": "three_clues",
+                    "message": "Three good RFID codes — the Gamemaster opens a minigame.",
                 }
             )
         return result
@@ -447,7 +443,7 @@ class GameEngine:
             tail = (
                 " The wheel of punishments has spoken."
                 if triggered
-                else f" (strike {self._bad_streak}/{BAD_CODE_STREAK_TRIGGER})"
+                else f" (wrong combos {self._bad_streak}/{BAD_CODE_STREAK_TRIGGER} until wheel)"
             )
             result = CodeAttemptResult(
                 ok=False,

@@ -70,6 +70,14 @@ class GameSnapshot(BaseModel):
         default=2,
         description="Bad attempts required to spin the wheel of punishments.",
     )
+    good_rfid_progress: int = Field(
+        default=0,
+        description="Good RFID rolls since last forced minigame (reveal or exhausted; not punishment).",
+    )
+    good_rfid_goal: int = Field(
+        default=3,
+        description="After this many good RFID rolls, a minigame is forced.",
+    )
 
 
 class RfidTagFile(BaseModel):

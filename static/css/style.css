@@ -285,6 +285,14 @@ button:disabled {
   font-size: 2.2rem;
 }
 
+.meter-hint {
+  width: 100%;
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
 .progress-pill {
   padding: 10px 16px;
   border-radius: 999px;
@@ -349,6 +357,22 @@ button:disabled {
   border-color: rgba(255, 92, 122, 0.55);
   color: #ffd7df;
   background: rgba(255, 92, 122, 0.08);
+}
+
+.strike-pill.clue-pill {
+  border-color: rgba(61, 214, 198, 0.35);
+}
+
+.strike-pill.clue-pill.ready {
+  border-color: rgba(61, 214, 198, 0.65);
+  color: #c9fff7;
+  background: rgba(61, 214, 198, 0.1);
+}
+
+.strike-pill.clue-pill .strike-dot.clue-dot-lit {
+  background: radial-gradient(circle at 30% 30%, #9ff7ec 0%, #3dd6c6 55%, #1a6b62 100%);
+  border-color: rgba(61, 214, 198, 0.85);
+  box-shadow: 0 0 14px rgba(61, 214, 198, 0.45);
 }
 
 .strike-count {
