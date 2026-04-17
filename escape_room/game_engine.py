@@ -4,7 +4,7 @@ import random
 import threading
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from escape_room.models import (
     CodeAttemptResult,
     CodePools,
@@ -213,7 +213,7 @@ class GameEngine:
             random.shuffle(slots)
             self._active = slots
             self._difficulty = difficulty
-            self._started_at = datetime.now(tz=UTC)
+            self._started_at = datetime.now(tz=timezone.utc)
             self._spent_tags.clear()
             snap = self.snapshot()
             assert snap is not None
