@@ -6,7 +6,7 @@
     <p class="lede">
       Pick a difficulty and launch the run. Each valid RFID scan (10 digits) rolls good or bad —
       good reveals one character on a random unsolved lock (~40% of scans come up bad on Medium).
-      Shorter digit strings try the numeric locks, five letters try a letter lock. Two wrong
+      Shorter digit strings try the numeric locks, five letters try a letter lock. Three wrong
       <em>lock combinations</em> in a row (not RFID) spin the <strong>wheel of punishments</strong>.
       Every <strong>three</strong> good RFID rolls (bad rolls do not count) forces a minigame.
     </p>
@@ -35,13 +35,13 @@
       </div>
       <div class="active-pills">
         <div
-          id="punishment-pill"
-          class="strike-pill"
-          title="Wrong combination attempts at the locks (3-digit, 4-digit, or 5-letter codes). RFID badge scans do not change this. At the threshold, the wheel of punishments spins."
+          id="bad-codes-pill"
+          class="strike-pill bad-pill"
+          title="Wrong lock combinations (3-digit, 4-digit, or 5-letter). RFID scans do not change this. At 3/3, the punishment wheel spins."
         >
-          <span class="strike-label">Wheel</span>
-          <span id="punishment-dots" class="strike-dots"></span>
-          <span id="punishment-count" class="strike-count">0 / 2</span>
+          <span class="strike-label">Bad codes</span>
+          <span id="bad-codes-dots" class="strike-dots"></span>
+          <span id="bad-codes-count" class="strike-count">0 / 3</span>
         </div>
         <div
           id="clue-minigame-pill"
@@ -55,7 +55,7 @@
       </div>
     </div>
     <p class="muted meter-hint">
-      <strong>Wheel</strong> — wrong <em>lock</em> combinations in a row (RFID does not count).
+      <strong>Bad codes</strong> — wrong <em>lock</em> combinations in a row (RFID does not count); at 3/3 the punishment wheel spins.
       <strong>Good codes</strong> — each good RFID roll advances 1 (bad rolls do not); at 3/3 a minigame opens next.
     </p>
 

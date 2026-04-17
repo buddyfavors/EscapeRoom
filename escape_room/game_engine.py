@@ -28,10 +28,14 @@ GOOD_SCAN_CHANCE: dict[Difficulty, float] = {
 }
 
 PUNISHMENT_LINES: tuple[str, ...] = (
-    "Punishment! The Gamemaster gains an edge.",
     "Bad scan — the Gamemaster laughs.",
-    "Cursed tag. No clue this time.",
-    "The Gamemaster claims that one.",
+    "Punishment! The Gamemaster gains an edge.",
+    "The Gamemaster savors that failure — no clue for you.",
+    "Cursed tag. The house remembers.",
+    "The Gamemaster claims that one with a grin.",
+    "Wrong soul, right trap — try again when you stop shaking.",
+    "The Gamemaster whispers: not today.",
+    "That badge bled out — nothing earned.",
 )
 
 # Minigames the "good-code surprise" trigger or the punishment wheel can launch.
@@ -44,7 +48,7 @@ FORCED_MINIGAME_IDS: tuple[str, ...] = (
     "pattern",
 )
 
-BAD_CODE_STREAK_TRIGGER = 2
+BAD_CODE_STREAK_TRIGGER = 3
 
 # After this many "good" RFID rolls (not punishment), force a minigame.
 MINIGAME_AFTER_GOOD_RFID = 3
@@ -162,7 +166,7 @@ class GameEngine:
         self._difficulty: Difficulty | None = None
         self._started_at: datetime | None = None
         self._spent_tags: set[str] = set()
-        self._bad_streak: int = 0
+        self._bad_lock_streak: int = 0
         self._good_rfid_since_minigame: int = 0
         self._listeners: list[Callable[[dict], None]] = []
 
@@ -229,8 +233,8 @@ class GameEngine:
                 locks=locks,
                 started_at_iso=self._started_at.isoformat() if self._started_at else None,
                 won=won,
-                bad_streak=self._bad_streak,
-                bad_streak_threshold=BAD_CODE_STREAK_TRIGGER,
+                bad_codes_progress=self._bad_lock_streak,
+                bad_codes_goal=BAD_CODE_STREAK_TRIGGER,
                 good_rfid_progress=self._good_rfid_since_minigame,
                 good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
             )
@@ -265,7 +269,7 @@ class GameEngine:
             self._difficulty = difficulty
             self._started_at = datetime.now(tz=timezone.utc)
             self._spent_tags.clear()
-            self._bad_streak = 0
+            self._bad_lock_streak = 0
             self._good_rfid_since_minigame = 0
             snap = self.snapshot()
             assert snap is not None
@@ -278,7 +282,7 @@ class GameEngine:
             self._difficulty = None
             self._started_at = None
             self._spent_tags.clear()
-            self._bad_streak = 0
+            self._bad_lock_streak = 0
             self._good_rfid_since_minigame = 0
         self._emit({"type": "game_stopped"})
 
@@ -419,7 +423,7 @@ class GameEngine:
                     continue
                 if _matches(slot.kind, submitted, slot.code):
                     slot.solved = True
-                    self._bad_streak = 0
+                    self._bad_lock_streak = 0
                     won = all(s.solved for s in self._active)
                     msg = "Lock opened!"
                     if won:
@@ -434,16 +438,16 @@ class GameEngine:
                     self._emit_code_result(result)
                     return result
 
-            self._bad_streak += 1
-            triggered = self._bad_streak >= BAD_CODE_STREAK_TRIGGER
+            self._bad_lock_streak += 1
+            triggered = self._bad_lock_streak >= BAD_CODE_STREAK_TRIGGER
             if triggered:
-                self._bad_streak = 0
+                self._bad_lock_streak = 0
                 punishment_event = self._spin_punishment_wheel()
 
             tail = (
                 " The wheel of punishments has spoken."
                 if triggered
-                else f" (wrong combos {self._bad_streak}/{BAD_CODE_STREAK_TRIGGER} until wheel)"
+                else f" ({self._bad_lock_streak}/{BAD_CODE_STREAK_TRIGGER} bad lock codes — the Gamemaster is counting.)"
             )
             result = CodeAttemptResult(
                 ok=False,
@@ -475,7 +479,7 @@ class GameEngine:
                 "type": "forced_minigame",
                 "url": f"/minigames/{slug}?forced=1&reason=punishment",
                 "reason": "punishment_wheel",
-                "message": "The Gamemaster locks the room — a minigame begins…",
+                "message": "The Gamemaster locks the room — your penance is a minigame.",
             }
 
         return {

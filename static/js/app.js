@@ -5,9 +5,9 @@ const overviewView = document.getElementById("overview-view");
 const activeView = document.getElementById("active-view");
 const activeDifficulty = document.getElementById("active-difficulty");
 const wonBadge = document.getElementById("won-badge");
-const punishmentPill = document.getElementById("punishment-pill");
-const punishmentDots = document.getElementById("punishment-dots");
-const punishmentCount = document.getElementById("punishment-count");
+const badCodesPill = document.getElementById("bad-codes-pill");
+const badCodesDots = document.getElementById("bad-codes-dots");
+const badCodesCount = document.getElementById("bad-codes-count");
 const clueMinigamePill = document.getElementById("clue-minigame-pill");
 const clueDots = document.getElementById("clue-dots");
 const clueCount = document.getElementById("clue-count");
@@ -41,20 +41,20 @@ function lockStateLabel(lock) {
   return "LOCKED";
 }
 
-function renderPunishmentMeter(snap) {
-  if (!punishmentPill) return;
-  const threshold = Math.max(1, Number(snap && snap.bad_streak_threshold) || 2);
-  const current = Math.max(0, Number(snap && snap.bad_streak) || 0);
-  if (punishmentCount) punishmentCount.textContent = `${current} / ${threshold}`;
-  if (punishmentDots) {
+function renderBadCodesMeter(snap) {
+  if (!badCodesPill) return;
+  const goal = Math.max(1, Number(snap && snap.bad_codes_goal) || 3);
+  const current = Math.max(0, Math.min(goal, Number(snap && snap.bad_codes_progress) || 0));
+  if (badCodesCount) badCodesCount.textContent = `${current} / ${goal}`;
+  if (badCodesDots) {
     const dots = [];
-    for (let i = 0; i < threshold; i += 1) {
+    for (let i = 0; i < goal; i += 1) {
       const lit = i < current ? "lit" : "";
       dots.push(`<span class="strike-dot ${lit}"></span>`);
     }
-    punishmentDots.innerHTML = dots.join("");
+    badCodesDots.innerHTML = dots.join("");
   }
-  punishmentPill.classList.toggle("danger", current > 0 && current >= threshold - 1);
+  badCodesPill.classList.toggle("ready", current > 0 && current >= goal - 1);
 }
 
 function renderClueMinigameMeter(snap) {
@@ -81,11 +81,11 @@ function setActiveView(snap) {
   if (!active) {
     if (locksEl) locksEl.innerHTML = "";
     if (wonBadge) wonBadge.hidden = true;
-    renderPunishmentMeter(null);
+    renderBadCodesMeter(null);
     renderClueMinigameMeter(null);
     return;
   }
-  renderPunishmentMeter(snap);
+  renderBadCodesMeter(snap);
   renderClueMinigameMeter(snap);
   if (activeDifficulty) {
     const d = (snap.difficulty || "").toString();
@@ -178,7 +178,7 @@ function applyWsMessage(msg) {
       msg.message ||
       (scheduled
         ? "Three good RFID codes — time for a minigame."
-        : "The Gamemaster locks the room — a minigame begins…");
+        : "The Gamemaster locks the room — your penance is a minigame.");
     setBanner(text, tone);
     window.setTimeout(() => {
       window.location.href = msg.url;

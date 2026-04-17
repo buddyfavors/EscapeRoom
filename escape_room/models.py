@@ -62,13 +62,13 @@ class GameSnapshot(BaseModel):
     locks: list[LockSlot]
     started_at_iso: str | None = None
     won: bool = False
-    bad_streak: int = Field(
+    bad_codes_progress: int = Field(
         default=0,
-        description="Bad lock-code attempts since the last good code or punishment.",
+        description="Wrong lock combinations since the last open lock or wheel spin.",
     )
-    bad_streak_threshold: int = Field(
-        default=2,
-        description="Bad attempts required to spin the wheel of punishments.",
+    bad_codes_goal: int = Field(
+        default=3,
+        description="Wrong lock combinations before the punishment wheel spins.",
     )
     good_rfid_progress: int = Field(
         default=0,

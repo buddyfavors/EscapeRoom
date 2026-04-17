@@ -353,10 +353,14 @@ button:disabled {
   box-shadow: 0 0 14px rgba(255, 92, 122, 0.55);
 }
 
-.strike-pill.danger {
-  border-color: rgba(255, 92, 122, 0.55);
+.strike-pill.bad-pill {
+  border-color: rgba(255, 92, 122, 0.35);
+}
+
+.strike-pill.bad-pill.ready {
+  border-color: rgba(255, 92, 122, 0.65);
   color: #ffd7df;
-  background: rgba(255, 92, 122, 0.08);
+  background: rgba(255, 92, 122, 0.1);
 }
 
 .strike-pill.clue-pill {
