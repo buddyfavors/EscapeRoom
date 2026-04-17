@@ -10,6 +10,9 @@ from fastapi import WebSocket
 logger = logging.getLogger(__name__)
 
 CHOICES = ("rock", "paper", "scissors")
+
+# Pause after each reveal so players can read the board before the next round.
+INTER_ROUND_PAUSE_S = 2.6
 BEATS = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
 
 
@@ -96,6 +99,7 @@ async def run_rps_session(ws: WebSocket) -> None:
                         "score": score,
                     }
                 )
+                await asyncio.sleep(INTER_ROUND_PAUSE_S)
                 continue
 
             if msg.get("action") != "play":
@@ -123,6 +127,7 @@ async def run_rps_session(ws: WebSocket) -> None:
                     "score": score,
                 }
             )
+            await asyncio.sleep(INTER_ROUND_PAUSE_S)
 
         won = score["player"] >= win_target
         await ws.send_json({"type": "over", "won": won, "score": score, "rounds": round_i})

@@ -220,6 +220,87 @@
   margin-bottom: 6px;
 }
 
+/* Keep full color on disabled buttons during reveal (global button:disabled fades them). */
+button.rps-choice:disabled {
+  opacity: 1;
+  cursor: default;
+  filter: none;
+}
+
+/* Your pick vs Gamemaster pick (always both shown after a reveal). */
+.rps-choice.rps-pick-you {
+  box-shadow:
+    0 0 0 3px rgba(61, 214, 198, 0.95),
+    0 8px 28px rgba(61, 214, 198, 0.22);
+}
+
+.rps-choice.rps-pick-gm {
+  box-shadow:
+    0 0 0 3px rgba(186, 120, 255, 0.92),
+    0 8px 28px rgba(186, 120, 255, 0.2);
+}
+
+.rps-choice.rps-pick-you.rps-pick-gm {
+  box-shadow:
+    0 0 0 3px rgba(255, 212, 59, 0.95),
+    0 8px 32px rgba(255, 212, 59, 0.28);
+}
+
+.rps-choice.rps-result-win {
+  background: linear-gradient(160deg, rgba(92, 255, 157, 0.35), #0f1622 55%);
+  border-color: rgba(92, 255, 157, 0.65);
+}
+
+.rps-choice.rps-result-lose {
+  background: linear-gradient(160deg, rgba(255, 92, 122, 0.32), #0f1622 55%);
+  border-color: rgba(255, 92, 122, 0.55);
+}
+
+.rps-choice.rps-result-tie {
+  background: linear-gradient(160deg, rgba(255, 212, 59, 0.28), #0f1622 55%);
+  border-color: rgba(255, 212, 59, 0.6);
+}
+
+.rps-choice.rps-gm-round-win {
+  background: linear-gradient(160deg, rgba(186, 120, 255, 0.22), #0f1622 50%);
+  border-color: rgba(186, 120, 255, 0.55);
+}
+
+.rps-choice.rps-round-timeout {
+  opacity: 0.55;
+}
+
+.rps-legend {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.rps-legend .key-you {
+  color: #5cefd9;
+  font-weight: 700;
+}
+
+.rps-legend .key-gm {
+  color: #d4a5ff;
+  font-weight: 700;
+}
+
+.rps-legend .key-win {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.rps-legend .key-lose {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.rps-legend .key-tie {
+  color: #ffe066;
+  font-weight: 700;
+}
+
 .rps-reveal {
   margin-top: 14px;
   padding: 14px;
@@ -246,6 +327,10 @@
 
 .rps-reveal.lose .outcome {
   color: var(--danger);
+}
+
+.rps-reveal.tie .outcome {
+  color: #ffe066;
 }
 
 /* Hangman */

@@ -16,6 +16,51 @@
 
   const ICONS = { rock: "✊", paper: "✋", scissors: "✌️" };
 
+  const ROUND_STYLE_CLASSES = [
+    "rps-pick-you",
+    "rps-pick-gm",
+    "rps-result-win",
+    "rps-result-lose",
+    "rps-result-tie",
+    "rps-gm-round-win",
+    "rps-round-timeout",
+  ];
+
+  function clearRpsRoundStyles() {
+    for (const b of choiceBtns) {
+      for (const cls of ROUND_STYLE_CLASSES) b.classList.remove(cls);
+    }
+  }
+
+  function applyRpsRevealStyles(msg) {
+    clearRpsRoundStyles();
+    if (!msg.gm) return;
+    if (msg.reason === "timeout" || !msg.player) {
+      for (const b of choiceBtns) b.classList.add("rps-round-timeout");
+      const gmBtn = choiceBtns.find((x) => x.dataset.choice === msg.gm);
+      if (gmBtn) gmBtn.classList.add("rps-pick-gm", "rps-gm-round-win");
+      return;
+    }
+    const p = msg.player;
+    const g = msg.gm;
+    const o = msg.outcome;
+    for (const b of choiceBtns) {
+      const c = b.dataset.choice;
+      if (c === p) b.classList.add("rps-pick-you");
+      if (c === g) b.classList.add("rps-pick-gm");
+    }
+    if (o === "tie") {
+      const b = choiceBtns.find((x) => x.dataset.choice === p);
+      if (b) b.classList.add("rps-result-tie");
+      return;
+    }
+    const youBtn = choiceBtns.find((x) => x.dataset.choice === p);
+    const gmBtn = choiceBtns.find((x) => x.dataset.choice === g);
+    if (o === "win" && youBtn) youBtn.classList.add("rps-result-win");
+    if (o === "lose" && youBtn) youBtn.classList.add("rps-result-lose");
+    if (o === "lose" && gmBtn) gmBtn.classList.add("rps-gm-round-win");
+  }
+
   function sfx(name, arg) {
     try {
       const S = window.MinigameSounds;
@@ -75,6 +120,7 @@
         return;
       }
       if (msg.type === "started") {
+        clearRpsRoundStyles();
         scoreYou.textContent = "0";
         scoreGm.textContent = "0";
         roundI.textContent = "–";
@@ -85,6 +131,7 @@
         return;
       }
       if (msg.type === "round") {
+        clearRpsRoundStyles();
         roundI.textContent = String(msg.index);
         scoreYou.textContent = String(msg.score.player);
         scoreGm.textContent = String(msg.score.gm);
@@ -98,22 +145,33 @@
       if (msg.type === "reveal") {
         stopTimerAnim();
         setChoicesEnabled(false);
+        applyRpsRevealStyles(msg);
         scoreYou.textContent = String(msg.score.player);
         scoreGm.textContent = String(msg.score.gm);
-        const you = msg.player ? ICONS[msg.player] + " " + msg.player : "— no pick";
+        const you = msg.player ? ICONS[msg.player] + " " + msg.player : "— no pick (timeout)";
         const gm = ICONS[msg.gm] + " " + msg.gm;
         const outcome = msg.outcome;
         reveal.className = "rps-reveal " + outcome;
-        const label = outcome === "win" ? "You win!" : outcome === "lose" ? "Gamemaster wins." : "Tie.";
+        const label =
+          msg.reason === "timeout"
+            ? "Timeout — GM scores."
+            : outcome === "win"
+              ? "You win the throw!"
+              : outcome === "lose"
+                ? "Gamemaster wins the throw."
+                : "Tie.";
         reveal.innerHTML =
           "<span>You: <strong>" + you + "</strong></span>" +
           "<span>GM: <strong>" + gm + "</strong></span>" +
           '<span class="outcome">' + label + "</span>";
+        const stTone = outcome === "win" ? "good" : outcome === "lose" || msg.reason === "timeout" ? "bad" : "";
+        setStatus("Result on the buttons — next round in a moment.", stTone);
         sfx("rpsReveal", outcome);
         return;
       }
       if (msg.type === "over") {
         stopTimerAnim();
+        clearRpsRoundStyles();
         setChoicesEnabled(false);
         btnStart.disabled = false;
         setStatus(msg.won ? "You took the match!" : "Gamemaster wins the match.", msg.won ? "good" : "bad");

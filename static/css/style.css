@@ -257,7 +257,6 @@ button.big {
 }
 
 .won-badge {
-  display: inline-block;
   margin-left: 10px;
   padding: 4px 10px;
   border-radius: 999px;
@@ -266,6 +265,15 @@ button.big {
   color: var(--ok);
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+/* Author `display` on .won-badge must not beat the HTML `hidden` attribute. */
+.won-badge[hidden] {
+  display: none !important;
+}
+
+.won-badge:not([hidden]) {
+  display: inline-block;
 }
 
 @media (min-width: 1100px) {

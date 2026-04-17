@@ -46,7 +46,10 @@ function setActiveView(snap) {
     progressPill.textContent = opened + " / " + total + " open";
     progressPill.classList.toggle("good", opened === total && total > 0);
   }
-  if (wonBadge) wonBadge.hidden = !snap.won;
+  if (wonBadge) {
+    const escaped = snap.won === true || snap.won === "true";
+    wonBadge.hidden = !escaped;
+  }
   locksEl.innerHTML = "";
   for (const lock of snap.locks) {
     const card = document.createElement("div");

@@ -207,11 +207,14 @@ class GameEngine:
         with self._lock:
             if self._active is None or self._difficulty is None:
                 return None
+            locks = [slot.model_copy(deep=True) for slot in self._active]
+            # `all([])` is True in Python — only declare a win when there is at least one lock.
+            won = bool(locks) and all(s.solved for s in locks)
             return GameSnapshot(
                 difficulty=self._difficulty,
-                locks=[slot.model_copy(deep=True) for slot in self._active],
+                locks=locks,
                 started_at_iso=self._started_at.isoformat() if self._started_at else None,
-                won=all(s.solved for s in self._active),
+                won=won,
             )
 
     def start(self, difficulty: Difficulty, rng: random.Random | None = None) -> GameSnapshot:

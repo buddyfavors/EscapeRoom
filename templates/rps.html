@@ -8,7 +8,8 @@
     <h1>Rock Paper Scissors</h1>
     <p class="lede">
       Best-of match against the Gamemaster. Tap a choice (or map three physical buttons).
-      Hard mode tightens the clock and the Gamemaster starts reading your habits.
+      Hard mode tightens the clock and the Gamemaster starts reading your habits. After each
+      throw, the buttons stay color-coded for a few seconds before the next round.
     </p>
 
     <div class="minigame-toolbar">
@@ -31,6 +32,14 @@
     </div>
 
     <div class="timer-bar"><i></i></div>
+
+    <p class="rps-legend muted">
+      <span class="key-you">Cyan ring</span> = your pick ·
+      <span class="key-gm">Violet ring</span> = Gamemaster ·
+      <span class="key-win">Green fill</span> = you won the throw ·
+      <span class="key-lose">Red fill</span> = you lost ·
+      <span class="key-tie">Gold</span> = tie (same hand).
+    </p>
 
     <div class="rps-choices">
       <button class="rps-choice" data-choice="rock" type="button">
