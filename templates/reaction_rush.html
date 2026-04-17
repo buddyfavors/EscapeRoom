@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Reaction Rush{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="/static/css/minigames.css" />
+{% endblock %}
+{% block content %}
+  <section class="panel minigame-page">
+    <h1>Reaction Rush</h1>
+    <p class="lede">
+      Columns are your real colors: <strong>Green, Blue, White, Yellow, Red</strong> (top-to-bottom = slots 1–3).
+      The server picks a random button (id 0–14). Hit it before time runs out; each success tightens the window.
+      Wrong button or timeout costs a life. Web Audio bleeps play on your monitor speaker or HDMI.
+    </p>
+
+    <div class="minigame-toolbar">
+      <label>
+        Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
+      <button id="btn-start" type="button" class="primary">Start run</button>
+      <span id="status" class="status-pill">Idle</span>
+    </div>
+
+    <div class="timer-bar"><i></i></div>
+    <div id="arcade-root"></div>
+    <p id="log" class="logline"></p>
+    <p class="muted"><a href="/minigames">All minigames</a> · <a href="/">Escape room</a></p>
+  </section>
+
+  <script src="/static/js/minigame_sounds.js"></script>
+  <script src="/static/js/arcade_grid.js"></script>
+  <script src="/static/js/reaction_rush_page.js"></script>
+{% endblock %}

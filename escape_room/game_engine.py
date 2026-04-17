@@ -1,0 +1,375 @@
+from __future__ import annotations
+
+import random
+import threading
+import uuid
+from collections.abc import Callable
+from datetime import UTC, datetime
+from escape_room.models import (
+    CodeAttemptResult,
+    CodePools,
+    Difficulty,
+    GameSnapshot,
+    LockKind,
+    LockSlot,
+    RfidTagEntry,
+    RfidTagFile,
+)
+from escape_room.rfid_format import normalize_rfid_tag
+
+
+# Physical inventory: 4× 3-digit, 2× 5-letter, 4× 4-digit.
+INVENTORY: dict[LockKind, int] = {
+    "digit3": 4,
+    "letter5": 2,
+    "digit4": 4,
+}
+
+LOCK_COUNTS: dict[Difficulty, int] = {
+    Difficulty.easy: 4,
+    Difficulty.medium: 7,
+    Difficulty.hard: 10,
+}
+
+
+def _flatten_inventory() -> list[LockKind]:
+    kinds: list[LockKind] = []
+    for kind, n in INVENTORY.items():
+        kinds.extend([kind] * n)
+    return kinds
+
+
+def build_lock_plan(difficulty: Difficulty) -> list[LockKind]:
+    if difficulty is Difficulty.hard:
+        return _flatten_inventory()
+
+    target = LOCK_COUNTS[difficulty]
+    kinds = _flatten_inventory()
+    random.shuffle(kinds)
+    return kinds[:target]
+
+
+def _take_unique(pool: list[str], n: int, rng: random.Random) -> list[str]:
+    if len(pool) < n:
+        raise ValueError(f"Need at least {n} unique codes in pool, have {len(pool)}")
+    return rng.sample(pool, n)
+
+
+def _normalize_submitted(kind: LockKind, raw: str) -> str:
+    s = raw.strip()
+    if kind == "letter5":
+        return s.upper()
+    return s
+
+
+def _matches(kind: LockKind, submitted: str, expected: str) -> bool:
+    sub = _normalize_submitted(kind, submitted)
+    exp = _normalize_submitted(kind, expected)
+    if kind == "digit3":
+        return sub.isdigit() and len(sub) == 3 and sub == exp
+    if kind == "digit4":
+        return sub.isdigit() and len(sub) == 4 and sub == exp
+    if kind == "letter5":
+        return len(sub) == 5 and sub.isalpha() and sub == exp
+    return False
+
+
+def _reveal_score(slot: LockSlot) -> int:
+    return sum(1 for x in slot.revealed if x is not None)
+
+
+def _pick_lock_for_reveal(
+    slots: list[LockSlot],
+    *,
+    kind_ok: Callable[[LockKind], bool],
+    difficulty: Difficulty,
+    rng: random.Random,
+) -> LockSlot | None:
+    """
+    Easy: focus clues on one lock (prefer the lock that already has the most reveals).
+    Medium: mix of focus vs spread (50/50).
+    Hard: uniform among eligible locks.
+    """
+    candidates = [
+        s
+        for s in slots
+        if not s.solved and kind_ok(s.kind) and any(x is None for x in s.revealed)
+    ]
+    if not candidates:
+        return None
+    if difficulty is Difficulty.easy:
+        return max(candidates, key=lambda s: (_reveal_score(s), s.id))
+    if difficulty is Difficulty.medium:
+        if rng.random() < 0.5:
+            return max(candidates, key=lambda s: (_reveal_score(s), s.id))
+        return min(candidates, key=lambda s: (_reveal_score(s), s.id))
+    return rng.choice(candidates)
+
+
+def _apply_one_reveal(slot: LockSlot, rng: random.Random) -> tuple[int, str] | None:
+    hidden = [i for i, ch in enumerate(slot.revealed) if ch is None]
+    if not hidden:
+        return None
+    idx = rng.choice(hidden)
+    char = slot.code[idx]
+    if slot.kind == "letter5":
+        char = char.upper()
+    slot.revealed[idx] = char
+    return idx, char
+
+
+class GameEngine:
+    """Thread-safe session state for one escape room run."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._pools: CodePools = CodePools()
+        self._rfid: RfidTagFile = RfidTagFile()
+        self._active: list[LockSlot] | None = None
+        self._difficulty: Difficulty | None = None
+        self._started_at: datetime | None = None
+        self._spent_tags: set[str] = set()
+        self._listeners: list[Callable[[dict], None]] = []
+
+    def set_pools(self, pools: CodePools) -> None:
+        with self._lock:
+            self._pools = pools
+
+    def set_rfid_tags(self, tags: RfidTagFile) -> None:
+        with self._lock:
+            self._rfid = tags
+
+    def get_pools(self) -> CodePools:
+        with self._lock:
+            return self._pools.model_copy(deep=True)
+
+    def get_rfid_tags(self) -> RfidTagFile:
+        with self._lock:
+            return self._rfid.model_copy(deep=True)
+
+    def subscribe(self, fn: Callable[[dict], None]) -> Callable[[], None]:
+        with self._lock:
+            self._listeners.append(fn)
+
+        def unsubscribe() -> None:
+            with self._lock:
+                if fn in self._listeners:
+                    self._listeners.remove(fn)
+
+        return unsubscribe
+
+    def _emit(self, event: dict) -> None:
+        with self._lock:
+            listeners = list(self._listeners)
+        for fn in listeners:
+            fn(event)
+
+    def _emit_code_result(self, result: CodeAttemptResult) -> None:
+        snap = self.snapshot()
+        self._emit(
+            {
+                "type": "code_result",
+                "result": result.model_dump(mode="json"),
+                "snapshot": snap.model_dump(mode="json") if snap else None,
+            }
+        )
+
+    def snapshot(self) -> GameSnapshot | None:
+        with self._lock:
+            if self._active is None or self._difficulty is None:
+                return None
+            return GameSnapshot(
+                difficulty=self._difficulty,
+                locks=[slot.model_copy(deep=True) for slot in self._active],
+                started_at_iso=self._started_at.isoformat() if self._started_at else None,
+                won=all(s.solved for s in self._active),
+            )
+
+    def start(self, difficulty: Difficulty, rng: random.Random | None = None) -> GameSnapshot:
+        rng = rng or random.Random()
+        with self._lock:
+            plan = build_lock_plan(difficulty)
+            need: dict[LockKind, int] = {}
+            for k in plan:
+                need[k] = need.get(k, 0) + 1
+
+            pools = self._pools
+            slots: list[LockSlot] = []
+
+            for kind, count in need.items():
+                pool = list(getattr(pools, kind))
+                codes = _take_unique(pool, count, rng)
+                for code in codes:
+                    slots.append(
+                        LockSlot(
+                            id=str(uuid.uuid4()),
+                            kind=kind,
+                            code=code,
+                            solved=False,
+                            revealed=[],
+                        )
+                    )
+
+            random.shuffle(slots)
+            self._active = slots
+            self._difficulty = difficulty
+            self._started_at = datetime.now(tz=UTC)
+            self._spent_tags.clear()
+            snap = self.snapshot()
+            assert snap is not None
+            self._emit({"type": "game_started", "snapshot": snap.model_dump(mode="json")})
+            return snap
+
+    def stop(self) -> None:
+        with self._lock:
+            self._active = None
+            self._difficulty = None
+            self._started_at = None
+            self._spent_tags.clear()
+        self._emit({"type": "game_stopped"})
+
+    def submit_code(self, raw: str) -> CodeAttemptResult:
+        tag = normalize_rfid_tag(raw)
+        if tag is not None:
+            return self._submit_rfid(tag)
+        return self._submit_lock_combination(raw)
+
+    def _submit_rfid(self, tag: str) -> CodeAttemptResult:
+        with self._lock:
+            if not self._active or self._difficulty is None:
+                result = CodeAttemptResult(
+                    ok=False,
+                    message="No active game.",
+                    interaction="lock",
+                )
+                self._emit_code_result(result)
+                return result
+
+            if tag in self._spent_tags:
+                result = CodeAttemptResult(
+                    ok=False,
+                    message="That badge was already used this game.",
+                    interaction="rfid_spent",
+                )
+                self._emit_code_result(result)
+                return result
+
+            entry = self._rfid.tags.get(tag)
+            if entry is None:
+                result = CodeAttemptResult(
+                    ok=False,
+                    message="Unknown RFID tag.",
+                    interaction="rfid_unknown",
+                )
+                self._emit_code_result(result)
+                return result
+
+            rng = random.Random()
+            difficulty = self._difficulty
+            slots = self._active
+            assert slots is not None
+
+            result = self._apply_rfid_entry(entry, slots, difficulty, rng)
+            self._spent_tags.add(tag)
+            self._emit_code_result(result)
+            return result
+
+    def _apply_rfid_entry(
+        self,
+        entry: RfidTagEntry,
+        slots: list[LockSlot],
+        difficulty: Difficulty,
+        rng: random.Random,
+    ) -> CodeAttemptResult:
+        reward = entry.kind
+        if reward == "hint":
+            msg = entry.message or "Hint redeemed."
+            return CodeAttemptResult(ok=True, message=msg, interaction="rfid_hint")
+        if reward == "punishment":
+            msg = entry.message or "Punishment! (The house gains an edge.)"
+            return CodeAttemptResult(ok=False, message=msg, interaction="rfid_punishment")
+
+        if reward == "reveal_letter":
+            slot = _pick_lock_for_reveal(
+                slots,
+                kind_ok=lambda k: k == "letter5",
+                difficulty=difficulty,
+                rng=rng,
+            )
+            label = "letter"
+        else:
+            slot = _pick_lock_for_reveal(
+                slots,
+                kind_ok=lambda k: k in ("digit3", "digit4"),
+                difficulty=difficulty,
+                rng=rng,
+            )
+            label = "number"
+
+        if slot is None:
+            return CodeAttemptResult(
+                ok=True,
+                message=f"No hidden {label} clues left to reveal — use what you already have.",
+                interaction="rfid_exhausted",
+            )
+
+        applied = _apply_one_reveal(slot, rng)
+        if applied is None:
+            return CodeAttemptResult(
+                ok=True,
+                message="Nothing left to reveal on that lock.",
+                interaction="rfid_exhausted",
+            )
+
+        idx, char = applied
+        return CodeAttemptResult(
+            ok=True,
+            message=f'Clue earned: position {idx + 1} on a {label} lock is "{char}".',
+            interaction="rfid_reveal",
+            reveal={
+                "lock_id": slot.id,
+                "lock_kind": slot.kind,
+                "index": idx,
+                "character": char,
+            },
+        )
+
+    def _submit_lock_combination(self, raw: str) -> CodeAttemptResult:
+        with self._lock:
+            if not self._active:
+                result = CodeAttemptResult(ok=False, message="No active game.", interaction="lock")
+                self._emit_code_result(result)
+                return result
+
+            submitted = raw.strip()
+            if not submitted:
+                result = CodeAttemptResult(ok=False, message="Empty code.", interaction="lock")
+                self._emit_code_result(result)
+                return result
+
+            for slot in self._active:
+                if slot.solved:
+                    continue
+                if _matches(slot.kind, submitted, slot.code):
+                    slot.solved = True
+                    won = all(s.solved for s in self._active)
+                    msg = "Lock opened!"
+                    if won:
+                        msg = "All locks open — you escaped!"
+                    result = CodeAttemptResult(
+                        ok=True,
+                        message=msg,
+                        lock_id=slot.id,
+                        won=won,
+                        interaction="lock",
+                    )
+                    self._emit_code_result(result)
+                    return result
+
+            result = CodeAttemptResult(
+                ok=False,
+                message="That code does not open a lock.",
+                interaction="lock",
+            )
+            self._emit_code_result(result)
+            return result

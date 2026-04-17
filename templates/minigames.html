@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Minigames{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="/static/css/minigames.css" />
+{% endblock %}
+{% block content %}
+  <section class="panel minigame-page">
+    <h1>Minigames</h1>
+    <p class="lede">
+      Monitor UI for your 5×3 rig: <strong>Green, Blue, White, Yellow, Red</strong> (three of each). Wire GPIO/LEDs
+      later — button indices <strong>0–14</strong> match the server. Sounds use the browser (Web Audio); add speaker to
+      the Pi if you like.
+    </p>
+    <ul class="list">
+      <li>
+        <a href="/minigames/reaction-rush"><strong>Reaction Rush</strong></a> — random lit button; hit it before the
+        window shrinks. Wrong button costs a life.
+      </li>
+      <li>
+        <a href="/minigames/whack-mole"><strong>Whack-a-Mole (traps)</strong></a> — several moles pop up; green-rimmed
+        are safe, red pulse is a trap. Clear every safe mole before time; traps cost a life. Sound on hits and traps.
+      </li>
+    </ul>
+    <p class="muted"><a href="/">← Back to escape room</a></p>
+  </section>
+{% endblock %}

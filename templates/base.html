@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Escape Room{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">KnottyBytes Escape Room</div>
+      <nav class="nav">
+        <a href="/">Play</a>
+        <a href="/minigames">Minigames</a>
+        <a href="/settings">Settings</a>
+      </nav>
+    </header>
+    <main class="container">{% block content %}{% endblock %}</main>
+  </body>
+</html>

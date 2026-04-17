@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Settings — Escape Room{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h1>Settings</h1>
+    <p class="lede">
+      Edit lock code pools as JSON. Keys: <code>digit3</code> (3 digits), <code>letter5</code> (5 letters),
+      <code>digit4</code> (4 digits). Hard mode needs at least four 3-digit, two 5-letter, and four 4-digit entries.
+    </p>
+
+    <label for="codes-text" class="label">Code pools (JSON)</label>
+    <textarea id="codes-text" class="codes" spellcheck="false"></textarea>
+
+    <div class="actions">
+      <button id="btn-save" type="button" class="primary">Save lock codes</button>
+      <button id="btn-reload" type="button" class="ghost">Reload lock codes</button>
+    </div>
+    <div id="save-msg" class="banner" role="status"></div>
+  </section>
+
+  <section class="panel">
+    <h2>RFID tags (10-digit IDs)</h2>
+    <p class="lede">
+      Map each tag to an effect. Keys must be ten digits (leading zeros count). Kinds:
+      <code>reveal_letter</code> (random hidden slot on a 5-letter lock),
+      <code>reveal_digit</code> (random hidden digit on a 3- or 4-digit lock),
+      <code>hint</code> / <code>punishment</code> with optional <code>message</code>.
+      Easier difficulties cluster reveals on fewer locks; harder spreads them.
+    </p>
+    <label for="rfid-text" class="label">RFID map (JSON)</label>
+    <textarea id="rfid-text" class="codes" spellcheck="false"></textarea>
+    <div class="actions">
+      <button id="btn-save-rfid" type="button" class="primary">Save RFID map</button>
+      <button id="btn-reload-rfid" type="button" class="ghost">Reload RFID map</button>
+    </div>
+    <div id="save-msg-rfid" class="banner" role="status"></div>
+  </section>
+
+  <section class="panel secondary">
+    <h2>GM — live session</h2>
+    <p class="muted">Shows active combinations for the running game (keep off the player monitor).</p>
+    <button id="btn-refresh-gm" type="button" class="ghost">Refresh snapshot</button>
+    <pre id="gm-snapshot" class="snapshot"></pre>
+  </section>
+
+  <section class="panel secondary">
+    <h2>Hardware notes</h2>
+    <ul class="list">
+      <li>RFID device path: set env <code>RFID_DEVICE</code> (default matches your POC reader).</li>
+      <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
+      <li>Each tag is one use per game (except unknown tags, which are not consumed).</li>
+    </ul>
+  </section>
+
+  <script src="/static/js/settings.js"></script>
+{% endblock %}
