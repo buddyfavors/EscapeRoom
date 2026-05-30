@@ -61,12 +61,21 @@ function applySetup(data) {
 }
 
 async function loadSetup() {
+  const embedded = document.getElementById("lock-setup-data");
+  if (embedded && embedded.textContent) {
+    try {
+      applySetup(JSON.parse(embedded.textContent));
+    } catch {
+      /* ignore malformed embed */
+    }
+  }
   try {
     const res = await fetch("/api/game/setup");
+    if (!res.ok) return;
     const data = await res.json();
     applySetup(data);
   } catch {
-    /* offline */
+    /* keep server-rendered values */
   }
 }
 
