@@ -176,6 +176,88 @@ h2 {
   margin-top: 28px;
 }
 
+.punishment-limit {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px 14px;
+  margin: 28px 0 0;
+}
+
+.punishment-limit legend {
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+.punishment-limit-hint {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.punishment-limit-row {
+  display: grid;
+  grid-template-columns: 1fr 6rem;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+.punishment-limit-row label {
+  font-weight: 600;
+}
+
+.punishment-limit-row input[type="number"] {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  background: #0f1622;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.difficulty + .punishment-limit {
+  margin-top: 28px;
+}
+
+.punishment-limit + .actions {
+  margin-top: 20px;
+}
+
+.last-punishment {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid rgba(255, 107, 107, 0.55);
+  background: rgba(255, 107, 107, 0.06);
+  font-size: 0.95rem;
+}
+
+.strike-pill.punish-pill {
+  border-color: rgba(255, 140, 102, 0.45);
+}
+
+.strike-pill.punish-pill.ready {
+  border-color: rgba(255, 107, 107, 0.75);
+  box-shadow: 0 0 0 1px rgba(255, 107, 107, 0.25);
+}
+
+.gm-won-badge {
+  margin-left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 107, 107, 0.18);
+  border: 1px solid rgba(255, 107, 107, 0.5);
+  color: #ff8c66;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.gm-won-badge[hidden] {
+  display: none !important;
+}
+
+.gm-won-badge:not([hidden]) {
+  display: inline-block;
+}
+
 .lock-picks legend {
   padding: 0 6px;
   color: var(--muted);

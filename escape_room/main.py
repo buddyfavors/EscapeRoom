@@ -13,7 +13,16 @@ from pydantic import BaseModel, Field, model_validator
 
 from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
-from escape_room.models import CodePools, Difficulty, GameSnapshot, LockCounts, LockKind, LockSlot, RFID_GOOD_PERCENT
+from escape_room.models import (
+    CodePools,
+    DEFAULT_PUNISHMENT_LIMIT,
+    Difficulty,
+    GameSnapshot,
+    LockCounts,
+    LockKind,
+    LockSlot,
+    RFID_GOOD_PERCENT,
+)
 from escape_room.rfid import RfidKeyboardListener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
 from escape_room.punishments_store import (
@@ -58,6 +67,7 @@ class GameStartBody(BaseModel):
     letter5: int | None = Field(default=None, ge=0)
     digit4: int | None = Field(default=None, ge=0)
     locks: LockCounts | None = None
+    punishment_limit: int | None = Field(default=None, ge=1, le=99)
 
     @model_validator(mode="before")
     @classmethod
@@ -83,6 +93,11 @@ class GameStartBody(BaseModel):
             )
         return LockCounts()
 
+    def resolved_punishment_limit(self) -> int:
+        if self.punishment_limit is not None:
+            return self.punishment_limit
+        return DEFAULT_PUNISHMENT_LIMIT
+
 
 def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
     if snap is None:
@@ -94,6 +109,11 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         "won": snap.won,
         "bad_codes_progress": snap.bad_codes_progress,
         "bad_codes_goal": snap.bad_codes_goal,
+        "punishments_received": snap.punishments_received,
+        "punishments_limit": snap.punishments_limit,
+        "last_punishment": snap.last_punishment,
+        "gm_won": snap.gm_won,
+        "game_over": snap.game_over,
         "good_rfid_progress": snap.good_rfid_progress,
         "good_rfid_goal": snap.good_rfid_goal,
         "minigames_enabled": snap.minigames_enabled,
@@ -192,8 +212,9 @@ def _lock_setup_payload() -> dict[str, Any]:
             "letter5": len(pools.letter5),
             "digit4": len(pools.digit4),
         },
-        "defaults": LockCounts().model_dump(),
-        "rfid_luck": {d.value: RFID_GOOD_PERCENT[d] for d in Difficulty},
+            "defaults": LockCounts().model_dump(),
+            "default_punishment_limit": DEFAULT_PUNISHMENT_LIMIT,
+            "rfid_luck": {d.value: RFID_GOOD_PERCENT[d] for d in Difficulty},
     }
 
 
@@ -424,7 +445,11 @@ async def game_preview(body: GameStartBody) -> JSONResponse:
 @app.post("/api/game/start")
 async def game_start(body: GameStartBody) -> JSONResponse:
     try:
-        snap = state.engine.start(body.difficulty, body.lock_counts())
+        snap = state.engine.start(
+            body.difficulty,
+            body.lock_counts(),
+            body.resolved_punishment_limit(),
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     # Engine emits game_started; also return for clients without WS
