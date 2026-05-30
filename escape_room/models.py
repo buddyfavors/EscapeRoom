@@ -23,6 +23,14 @@ RFID_GOOD_PERCENT: dict[Difficulty, int] = {
     Difficulty.hard: 45,
 }
 
+# PRD: after each good RFID scan in a row, bad chance rises by this much (RFID-heavy runs).
+RFID_PRD_BAD_INCREMENT: dict[Difficulty, float] = {
+    Difficulty.easy: 0.07,
+    Difficulty.medium: 0.09,
+    Difficulty.hard: 0.11,
+}
+RFID_PRD_BAD_CAP = 0.92
+
 
 DEFAULT_PUNISHMENT_LIMIT = 3
 
@@ -88,6 +96,10 @@ class GameSnapshot(BaseModel):
     rfid_good_percent: int = Field(
         default=60,
         description="Percent chance a valid RFID scan is good (reveals a clue).",
+    )
+    rfid_bad_chance_percent: int = Field(
+        default=40,
+        description="Current bad-scan chance for the next RFID roll (PRD — rises after good scans).",
     )
     bad_codes_progress: int = Field(
         default=0,

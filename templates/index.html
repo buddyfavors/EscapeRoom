@@ -54,17 +54,20 @@
           <tr>
             <th>Tier</th>
             <th>Good RFID</th>
-            <th>Bad RFID</th>
-            <th>3 bad scans in a row</th>
+            <th>Base bad RFID</th>
+            <th>PRD step</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>Easy</td><td>75%</td><td>25%</td><td>~1.5%</td></tr>
-          <tr><td>Medium</td><td>60%</td><td>40%</td><td>~6.4%</td></tr>
-          <tr><td>Hard</td><td>45%</td><td>55%</td><td>~16.6%</td></tr>
+          <tr><td>Easy</td><td>75%</td><td>25%</td><td>+7% per good scan</td></tr>
+          <tr><td>Medium</td><td>60%</td><td>40%</td><td>+9% per good scan</td></tr>
+          <tr><td>Hard</td><td>45%</td><td>55%</td><td>+11% per good scan</td></tr>
         </tbody>
       </table>
-      <p class="muted rfid-tiers-note">“3 in a row” is the chance of three consecutive bad RFID rolls. Bad RFID scans do not reset the bad-code counter — only opening a lock does.</p>
+      <p class="muted rfid-tiers-note">
+        Base bad rates above. After each good scan in a row, bad chance rises (+7% Easy, +9% Medium, +11% Hard) so RFID-heavy runs still pressure the Gamemaster — up to 92% bad.
+        Bad RFID scans do not reset the bad-code counter; only opening a lock does.
+      </p>
     </fieldset>
 
     <fieldset class="punishment-limit">
@@ -93,6 +96,7 @@
           <span id="gm-won-badge" class="gm-won-badge" hidden>GAME OVER</span>
         </h1>
         <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
+        <p id="rfid-next-bad" class="muted rfid-next-bad" hidden></p>
       </div>
       <div class="active-pills">
         <div
@@ -144,5 +148,5 @@
   </section>
 
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=5"></script>
+  <script src="/static/js/app.js?v=6"></script>
 {% endblock %}
