@@ -4,27 +4,45 @@
   <section id="overview-view" class="panel kiosk-hero">
     <h1>Escape Room</h1>
     <p class="lede">
-      Pick a difficulty and launch the run. Each valid RFID scan (10 digits) rolls good or bad —
-      good reveals one character on a random unsolved lock (~40% of scans come up bad on Medium).
-      Shorter digit strings try the numeric locks, five letters try a letter lock. Three
-      <strong>bad codes</strong> in a row — wrong lock combinations <em>or</em> bad RFID rolls — spin
-      the <strong>wheel of punishments</strong>. A good RFID clue or opening a lock resets the bad streak.
+      Choose how many locks of each type to use (from the codes saved in Settings), then pick
+      <strong>RFID clue luck</strong> — the percent chance a badge scan reveals a clue.
+      Shorter digit strings try numeric locks; five letters try a letter lock. Three
+      <strong>bad codes</strong> in a row spins the punishment wheel.
       {% if minigames_enabled %}
-        Every <strong>three</strong> good RFID rolls (bad rolls do not count) forces a minigame.
-      {% else %}
-        Arcade minigames are <strong>off</strong> until the LED board is ready (only clues &amp; locks run).
+        Every three good RFID rolls can force a minigame.
       {% endif %}
+      The Gamemaster programs physical locks from <a href="/settings">Settings</a> after you start.
     </p>
 
+    <fieldset class="lock-picks">
+      <legend>Locks in this game</legend>
+      <p class="muted lock-picks-hint">Max each row to how many codes you have configured. At least one lock total.</p>
+      <div class="lock-pick-row">
+        <label for="lock-digit3">3-digit locks</label>
+        <input id="lock-digit3" type="number" min="0" max="0" value="0" />
+        <span id="avail-digit3" class="muted">0 configured</span>
+      </div>
+      <div class="lock-pick-row">
+        <label for="lock-letter5">5-letter locks</label>
+        <input id="lock-letter5" type="number" min="0" max="0" value="1" />
+        <span id="avail-letter5" class="muted">0 configured</span>
+      </div>
+      <div class="lock-pick-row">
+        <label for="lock-digit4">4-digit lockboxes</label>
+        <input id="lock-digit4" type="number" min="0" max="0" value="2" />
+        <span id="avail-digit4" class="muted">0 configured</span>
+      </div>
+    </fieldset>
+
     <fieldset class="difficulty">
-      <legend>Difficulty</legend>
-      <label><input type="radio" name="difficulty" value="easy" checked /> Easy — 4 locks</label>
-      <label><input type="radio" name="difficulty" value="medium" /> Medium — 7 locks</label>
-      <label><input type="radio" name="difficulty" value="hard" /> Hard — all 10 locks</label>
+      <legend>RFID clue luck</legend>
+      <label><input type="radio" name="difficulty" value="easy" /> Easy — 60% good scans</label>
+      <label><input type="radio" name="difficulty" value="medium" checked /> Medium — 50% good scans</label>
+      <label><input type="radio" name="difficulty" value="hard" /> Hard — 40% good scans</label>
     </fieldset>
 
     <div class="actions">
-      <button id="btn-play" type="button" class="primary big">Start run</button>
+      <button id="btn-play" type="button" class="primary big">Start Game</button>
       {% if minigames_enabled %}
         <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
       {% endif %}
@@ -35,7 +53,7 @@
     <div class="active-head">
       <div>
         <h1>
-          Run in progress <span id="active-difficulty" class="muted"></span>
+          Game in progress <span id="active-difficulty" class="muted"></span>
           <span id="won-badge" class="won-badge" hidden>ESCAPED</span>
         </h1>
         <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
@@ -54,7 +72,7 @@
           <div
             id="clue-minigame-pill"
             class="strike-pill clue-pill"
-            title="Each time a known RFID tag rolls &quot;good&quot; (clue or lucky empty roll). Punishment rolls do not advance this. At 3/3, a minigame opens next."
+            title="Each time a known RFID tag rolls good. At 3/3, a minigame opens next."
           >
             <span class="strike-label">Good codes</span>
             <span id="clue-dots" class="strike-dots"></span>

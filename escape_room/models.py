@@ -7,12 +7,32 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Difficulty(str, Enum):
+    """RFID clue luck — higher = more good scans (reveals)."""
+
     easy = "easy"
     medium = "medium"
     hard = "hard"
 
 
 LockKind = Literal["digit3", "letter5", "digit4"]
+
+# Chance a valid RFID scan is "good" (reveals a clue), by difficulty.
+RFID_GOOD_PERCENT: dict[Difficulty, int] = {
+    Difficulty.easy: 60,
+    Difficulty.medium: 50,
+    Difficulty.hard: 40,
+}
+
+
+class LockCounts(BaseModel):
+    """How many locks of each kind to use in one game run."""
+
+    digit3: int = Field(default=0, ge=0)
+    letter5: int = Field(default=1, ge=0)
+    digit4: int = Field(default=2, ge=0)
+
+    def total(self) -> int:
+        return self.digit3 + self.letter5 + self.digit4
 
 
 class CodePools(BaseModel):
@@ -62,6 +82,10 @@ class GameSnapshot(BaseModel):
     locks: list[LockSlot]
     started_at_iso: str | None = None
     won: bool = False
+    rfid_good_percent: int = Field(
+        default=50,
+        description="Percent chance a valid RFID scan is good (reveals a clue).",
+    )
     bad_codes_progress: int = Field(
         default=0,
         description="Consecutive bad outcomes: RFID punishment rolls and/or wrong lock combinations.",

@@ -11,6 +11,7 @@ const saveMsg = document.getElementById("save-msg");
 const saveMsgRfid = document.getElementById("save-msg-rfid");
 const saveMsgPun = document.getElementById("save-msg-punishments");
 const gmPre = document.getElementById("gm-snapshot");
+const gmProgramming = document.getElementById("gm-programming");
 const btnGm = document.getElementById("btn-refresh-gm");
 
 function setSaveMsg(el, text, ok) {
@@ -133,7 +134,30 @@ if (btnReloadPun) {
 async function refreshGm() {
   const res = await fetch("/api/gm/snapshot");
   const data = await res.json();
-  gmPre.textContent = JSON.stringify(data, null, 2);
+  if (gmPre) gmPre.textContent = JSON.stringify(data, null, 2);
+
+  if (!gmProgramming) return;
+  if (!data.active || !data.programming || !data.programming.length) {
+    gmProgramming.innerHTML = "<p>No active game — start one from the Play screen.</p>";
+    gmProgramming.classList.add("muted");
+    return;
+  }
+
+  const pct = data.rfid_good_percent != null ? data.rfid_good_percent : "—";
+  const diff = data.snapshot && data.snapshot.difficulty ? data.snapshot.difficulty : "";
+  const diffTitle = diff ? diff[0].toUpperCase() + diff.slice(1) : "—";
+
+  let html =
+    `<p class="gm-meta"><strong>RFID luck:</strong> ${diffTitle} · ${pct}% good scans · ` +
+    `<strong>${data.programming.length}</strong> lock${data.programming.length === 1 ? "" : "s"}</p>` +
+    '<table class="gm-table"><thead><tr><th>#</th><th>Type</th><th>Set lock to</th></tr></thead><tbody>';
+
+  for (const row of data.programming) {
+    html += `<tr><td>${row.index}</td><td>${row.kind_label}</td><td class="gm-code">${row.code}</td></tr>`;
+  }
+  html += "</tbody></table>";
+  gmProgramming.innerHTML = html;
+  gmProgramming.classList.remove("muted");
 }
 
 btnGm.addEventListener("click", refreshGm);

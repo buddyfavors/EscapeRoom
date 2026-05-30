@@ -12,9 +12,62 @@ const clueMinigamePill = document.getElementById("clue-minigame-pill");
 const clueDots = document.getElementById("clue-dots");
 const clueCount = document.getElementById("clue-count");
 
+const lockInputs = {
+  digit3: document.getElementById("lock-digit3"),
+  letter5: document.getElementById("lock-letter5"),
+  digit4: document.getElementById("lock-digit4"),
+};
+const availLabels = {
+  digit3: document.getElementById("avail-digit3"),
+  letter5: document.getElementById("avail-letter5"),
+  digit4: document.getElementById("avail-digit4"),
+};
+
+let setupData = null;
+
 function selectedDifficulty() {
   const el = document.querySelector('input[name="difficulty"]:checked');
-  return el ? el.value : "easy";
+  return el ? el.value : "medium";
+}
+
+function selectedLockCounts() {
+  return {
+    digit3: Math.max(0, parseInt(lockInputs.digit3?.value || "0", 10) || 0),
+    letter5: Math.max(0, parseInt(lockInputs.letter5?.value || "0", 10) || 0),
+    digit4: Math.max(0, parseInt(lockInputs.digit4?.value || "0", 10) || 0),
+  };
+}
+
+function applySetup(data) {
+  setupData = data;
+  const available = data.available || {};
+  const defaults = data.defaults || {};
+  for (const kind of ["digit3", "letter5", "digit4"]) {
+    const max = Math.max(0, Number(available[kind]) || 0);
+    const input = lockInputs[kind];
+    const label = availLabels[kind];
+    if (input) {
+      input.max = String(max);
+      input.min = "0";
+      const def = Number(defaults[kind]);
+      const val = Number.isFinite(def) ? Math.min(def, max) : 0;
+      input.value = String(val);
+      input.disabled = max === 0;
+    }
+    if (label) {
+      label.textContent = max === 1 ? "1 configured" : `${max} configured`;
+    }
+  }
+}
+
+async function loadSetup() {
+  try {
+    const res = await fetch("/api/game/setup");
+    const data = await res.json();
+    applySetup(data);
+  } catch {
+    /* offline */
+  }
 }
 
 function kindLabel(kind) {
@@ -88,8 +141,11 @@ function setActiveView(snap) {
   renderBadCodesMeter(snap);
   renderClueMinigameMeter(snap);
   if (activeDifficulty) {
-    const d = (snap.difficulty || "").toString();
-    activeDifficulty.textContent = d ? "— " + d[0].toUpperCase() + d.slice(1) : "";
+    const d = (snap.difficulty || "medium").toString();
+    const pct = snap.rfid_good_percent != null ? snap.rfid_good_percent : "";
+    const title = d[0].toUpperCase() + d.slice(1);
+    activeDifficulty.textContent =
+      pct !== "" && pct !== null ? `— ${title} · ${pct}% good RFID` : `— ${title}`;
   }
   if (wonBadge) {
     const escaped = snap.won === true || snap.won === "true";
@@ -141,10 +197,18 @@ async function postJson(url, body) {
 
 if (btnPlay) {
   btnPlay.addEventListener("click", async () => {
+    const locks = selectedLockCounts();
+    if (locks.digit3 + locks.letter5 + locks.digit4 < 1) {
+      setBanner("Pick at least one lock to start.", "bad");
+      return;
+    }
     btnPlay.disabled = true;
     try {
-      const data = await postJson("/api/game/start", { difficulty: selectedDifficulty() });
-      setBanner("Game started. Good luck!", "ok");
+      const data = await postJson("/api/game/start", {
+        difficulty: selectedDifficulty(),
+        locks,
+      });
+      setBanner("Game started — Gamemaster: open Settings to program the locks.", "ok");
       setActiveView(data.snapshot);
     } catch (e) {
       setBanner(String(e.message || e), "bad");
@@ -216,6 +280,7 @@ function connectWs() {
 }
 
 (async () => {
+  await loadSetup();
   try {
     const res = await fetch("/api/game/status");
     const data = await res.json();

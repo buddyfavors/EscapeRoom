@@ -111,6 +111,96 @@ h2 {
   line-height: 1.55;
 }
 
+.difficulty label {
+  display: block;
+  margin: 8px 0 10px;
+  cursor: pointer;
+}
+
+.lock-picks {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px 10px;
+  margin: 0 0 16px;
+}
+
+.lock-picks legend {
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+.lock-picks-hint {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+
+.lock-pick-row {
+  display: grid;
+  grid-template-columns: 1fr 5rem 8rem;
+  gap: 10px 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.lock-pick-row label {
+  font-weight: 600;
+}
+
+.lock-pick-row input[type="number"] {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  background: #0f1622;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.lock-pick-row input[type="number"]:disabled {
+  opacity: 0.45;
+}
+
+.gm-programming {
+  margin-top: 12px;
+}
+
+.gm-meta {
+  margin: 0 0 10px;
+}
+
+.gm-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.gm-table th,
+.gm-table td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.gm-table th {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.gm-table .gm-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffd35c;
+}
+
+.gm-raw {
+  margin-top: 14px;
+  color: var(--muted);
+}
+
 .difficulty {
   border: 1px dashed var(--border);
   border-radius: var(--radius);
