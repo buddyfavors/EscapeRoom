@@ -137,6 +137,11 @@ h2 {
   letter-spacing: 0.05em;
 }
 
+.rfid-next-bad {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+}
+
 .rfid-tiers-note {
   margin: 0 0 4px;
   font-size: 0.85rem;

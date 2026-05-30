@@ -105,6 +105,7 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
     return {
         "difficulty": snap.difficulty.value,
         "rfid_good_percent": snap.rfid_good_percent,
+        "rfid_bad_chance_percent": snap.rfid_bad_chance_percent,
         "started_at_iso": snap.started_at_iso,
         "won": snap.won,
         "bad_codes_progress": snap.bad_codes_progress,

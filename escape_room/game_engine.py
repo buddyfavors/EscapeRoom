@@ -16,6 +16,8 @@ from escape_room.models import (
     LockSlot,
     RfidTagFile,
     RFID_GOOD_PERCENT,
+    RFID_PRD_BAD_CAP,
+    RFID_PRD_BAD_INCREMENT,
 )
 from escape_room.config import MINIGAMES_ENABLED
 from escape_room.punishments_store import PunishmentEntry
@@ -204,6 +206,7 @@ class GameEngine:
         self._last_punishment: str | None = None
         self._used_punishment_keys: set[str] = set()
         self._gm_won: bool = False
+        self._rfid_consecutive_good_scans: int = 0
 
     def set_pools(self, pools: CodePools) -> None:
         with self._lock:
@@ -281,6 +284,7 @@ class GameEngine:
                 good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
                 minigames_enabled=MINIGAMES_ENABLED,
                 rfid_good_percent=RFID_GOOD_PERCENT.get(self._difficulty, 60),
+                rfid_bad_chance_percent=self._current_bad_rfid_chance_percent(self._difficulty),
             )
 
     def preview_locks(
@@ -330,6 +334,7 @@ class GameEngine:
             self._last_punishment = None
             self._used_punishment_keys.clear()
             self._gm_won = False
+            self._rfid_consecutive_good_scans = 0
             snap = self.snapshot()
             assert snap is not None
             self._emit({"type": "game_started", "snapshot": snap.model_dump(mode="json")})
@@ -349,6 +354,7 @@ class GameEngine:
             self._last_punishment = None
             self._used_punishment_keys.clear()
             self._gm_won = False
+            self._rfid_consecutive_good_scans = 0
         self._emit({"type": "game_stopped"})
 
     def submit_code(self, raw: str) -> CodeAttemptResult:
@@ -359,6 +365,19 @@ class GameEngine:
 
     def _game_is_playable(self) -> bool:
         return self._active is not None and self._difficulty is not None and not self._gm_won
+
+    def _base_bad_rfid_chance(self, difficulty: Difficulty) -> float:
+        return 1.0 - GOOD_SCAN_CHANCE.get(difficulty, 0.60)
+
+    def _current_bad_rfid_chance(self, difficulty: Difficulty) -> float:
+        """PRD: bad odds rise after consecutive good RFID scans (caps at RFID_PRD_BAD_CAP)."""
+        base = self._base_bad_rfid_chance(difficulty)
+        increment = RFID_PRD_BAD_INCREMENT.get(difficulty, 0.09)
+        bonus = self._rfid_consecutive_good_scans * increment
+        return min(RFID_PRD_BAD_CAP, base + bonus)
+
+    def _current_bad_rfid_chance_percent(self, difficulty: Difficulty) -> int:
+        return round(self._current_bad_rfid_chance(difficulty) * 100)
 
     def _record_wheel_punishment(self, label: str) -> bool:
         """Apply one wheel punishment; return True if the Gamemaster just won."""
@@ -451,6 +470,7 @@ class GameEngine:
             self._spent_tags.add(tag)
 
             if result.interaction == "rfid_punishment":
+                self._rfid_consecutive_good_scans = 0
                 self._bad_codes_streak += 1
                 triggered = self._bad_codes_streak >= BAD_CODE_STREAK_TRIGGER
                 if triggered:
@@ -466,6 +486,7 @@ class GameEngine:
 
             # Predictable minigame: every N good RFID rolls (only when arcade minigames are enabled).
             elif result.interaction in ("rfid_reveal", "rfid_exhausted"):
+                self._rfid_consecutive_good_scans += 1
                 if MINIGAMES_ENABLED:
                     self._good_rfid_since_minigame += 1
                     if self._good_rfid_since_minigame >= MINIGAME_AFTER_GOOD_RFID:
@@ -498,10 +519,10 @@ class GameEngine:
     ) -> CodeAttemptResult:
         """
         Valid RFID scan: roll good (random lock-code clue) vs bad (punishment).
-        The odds shift with difficulty; see GOOD_SCAN_CHANCE.
+        Uses PRD — bad chance rises after consecutive good scans (see RFID_PRD_BAD_INCREMENT).
         """
-        good_chance = GOOD_SCAN_CHANCE.get(difficulty, 0.75)
-        if rng.random() >= good_chance:
+        bad_chance = self._current_bad_rfid_chance(difficulty)
+        if rng.random() < bad_chance:
             return CodeAttemptResult(
                 ok=False,
                 message=rng.choice(PUNISHMENT_LINES),

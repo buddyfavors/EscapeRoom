@@ -15,6 +15,7 @@ const punishmentsPill = document.getElementById("punishments-pill");
 const punishmentsCount = document.getElementById("punishments-count");
 const lastPunishmentEl = document.getElementById("last-punishment");
 const gmWonBadge = document.getElementById("gm-won-badge");
+const rfidNextBadEl = document.getElementById("rfid-next-bad");
 const punishmentLimitInput = document.getElementById("punishment-limit");
 
 const lockInputs = {
@@ -260,6 +261,10 @@ function setActiveView(snap) {
     if (locksEl) locksEl.innerHTML = "";
     if (wonBadge) wonBadge.hidden = true;
     if (gmWonBadge) gmWonBadge.hidden = true;
+    if (rfidNextBadEl) {
+      rfidNextBadEl.hidden = true;
+      rfidNextBadEl.textContent = "";
+    }
     renderBadCodesMeter(null);
     renderPunishmentsMeter(null);
     renderClueMinigameMeter(null);
@@ -273,6 +278,16 @@ function setActiveView(snap) {
     const d = (snap.difficulty || "medium").toString();
     const title = d[0].toUpperCase() + d.slice(1);
     activeDifficulty.textContent = `— ${title}`;
+  }
+  if (rfidNextBadEl) {
+    const pct = snap.rfid_bad_chance_percent != null ? snap.rfid_bad_chance_percent : null;
+    if (pct != null && !snap.game_over) {
+      rfidNextBadEl.hidden = false;
+      rfidNextBadEl.textContent = `Next badge scan: ${pct}% bad (rises after each good scan).`;
+    } else {
+      rfidNextBadEl.hidden = true;
+      rfidNextBadEl.textContent = "";
+    }
   }
   if (wonBadge) {
     const escaped = snap.won === true || snap.won === "true";
