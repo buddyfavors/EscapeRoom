@@ -267,7 +267,7 @@ class GameEngine:
                 good_rfid_progress=self._good_rfid_since_minigame,
                 good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
                 minigames_enabled=MINIGAMES_ENABLED,
-                rfid_good_percent=RFID_GOOD_PERCENT.get(self._difficulty, 50),
+                rfid_good_percent=RFID_GOOD_PERCENT.get(self._difficulty, 60),
             )
 
     def preview_locks(

@@ -18,9 +18,9 @@ LockKind = Literal["digit3", "letter5", "digit4"]
 
 # Chance a valid RFID scan is "good" (reveals a clue), by difficulty.
 RFID_GOOD_PERCENT: dict[Difficulty, int] = {
-    Difficulty.easy: 60,
-    Difficulty.medium: 50,
-    Difficulty.hard: 40,
+    Difficulty.easy: 75,
+    Difficulty.medium: 60,
+    Difficulty.hard: 45,
 }
 
 
@@ -83,7 +83,7 @@ class GameSnapshot(BaseModel):
     started_at_iso: str | None = None
     won: bool = False
     rfid_good_percent: int = Field(
-        default=50,
+        default=60,
         description="Percent chance a valid RFID scan is good (reveals a clue).",
     )
     bad_codes_progress: int = Field(
