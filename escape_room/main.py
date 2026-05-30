@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
-from escape_room.models import CodePools, Difficulty, GameSnapshot, LockCounts, LockKind, RFID_GOOD_PERCENT
+from escape_room.models import CodePools, Difficulty, GameSnapshot, LockCounts, LockKind, LockSlot, RFID_GOOD_PERCENT
 from escape_room.rfid import RfidKeyboardListener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
 from escape_room.punishments_store import (
@@ -363,6 +363,19 @@ def _lock_kind_label(kind: LockKind) -> str:
     return kind
 
 
+def _programming_from_slots(slots: list[LockSlot]) -> list[dict[str, Any]]:
+    return [
+        {
+            "index": i + 1,
+            "kind": lock.kind,
+            "kind_label": _lock_kind_label(lock.kind),
+            "code": lock.code,
+            "id": lock.id,
+        }
+        for i, lock in enumerate(slots)
+    ]
+
+
 @app.get("/api/game/setup")
 async def game_setup() -> JSONResponse:
     """Pool sizes and defaults for the start-game form."""
@@ -381,22 +394,29 @@ async def gm_snapshot() -> JSONResponse:
     snap = state.engine.snapshot()
     if snap is None:
         return JSONResponse(content={"active": False, "snapshot": None, "programming": []})
-    programming = [
-        {
-            "index": i + 1,
-            "kind": lock.kind,
-            "kind_label": _lock_kind_label(lock.kind),
-            "code": lock.code,
-            "id": lock.id,
-        }
-        for i, lock in enumerate(snap.locks)
-    ]
     return JSONResponse(
         content={
             "active": True,
             "snapshot": snap.model_dump(mode="json"),
             "rfid_good_percent": snap.rfid_good_percent,
-            "programming": programming,
+            "programming": _programming_from_slots(snap.locks),
+        }
+    )
+
+
+@app.post("/api/game/preview")
+async def game_preview(body: GameStartBody) -> JSONResponse:
+    """Roll lock combinations for the Gamemaster before starting; start() reuses this preview."""
+    try:
+        counts = body.lock_counts()
+        slots = state.engine.preview_locks(counts)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return JSONResponse(
+        content={
+            "ok": True,
+            "counts": counts.model_dump(),
+            "programming": _programming_from_slots(slots),
         }
     )
 

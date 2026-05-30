@@ -13,7 +13,7 @@
       {% if minigames_enabled %}
         Every three good RFID rolls can force a minigame.
       {% endif %}
-      The Gamemaster programs physical locks from <a href="/settings">Settings</a> after you start.
+      The Gamemaster previews the combinations below, programs the physical locks, then starts the game.
     </p>
 
     <fieldset class="lock-picks">
@@ -35,6 +35,14 @@
         <span id="avail-digit4" class="muted">{% if avail.digit4 == 0 %}none available{% elif avail.digit4 == 1 %}max 1{% else %}max {{ avail.digit4 }}{% endif %}</span>
       </div>
     </fieldset>
+
+    <section class="gm-preview-panel">
+      <h2>Gamemaster — program these locks</h2>
+      <p class="muted gm-preview-hint">
+        Combinations update when you change lock counts. Set each physical lock to match, then Start Game.
+      </p>
+      <div id="gm-preview" class="gm-programming muted">Pick at least one lock to preview combinations.</div>
+    </section>
 
     <fieldset class="difficulty">
       <legend>RFID clue luck</legend>
@@ -99,5 +107,5 @@
   </section>
 
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=3"></script>
+  <script src="/static/js/app.js?v=4"></script>
 {% endblock %}
