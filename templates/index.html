@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Play — Escape Room{% endblock %}
 {% block content %}
+  {% set avail = lock_setup.available %}
+  {% set defs = lock_setup.defaults %}
   <section id="overview-view" class="panel kiosk-hero">
     <h1>Escape Room</h1>
     <p class="lede">
@@ -19,18 +21,18 @@
       <p class="muted lock-picks-hint">Max each row to how many codes you have configured. At least one lock total.</p>
       <div class="lock-pick-row">
         <label for="lock-digit3">3-digit locks</label>
-        <input id="lock-digit3" type="number" min="0" max="0" value="0" />
-        <span id="avail-digit3" class="muted">0 configured</span>
+        <input id="lock-digit3" type="number" min="0" max="{{ avail.digit3 }}" value="{{ [defs.digit3, avail.digit3]|min }}"{% if avail.digit3 == 0 %} disabled{% endif %} />
+        <span id="avail-digit3" class="muted">{{ avail.digit3 }} configured</span>
       </div>
       <div class="lock-pick-row">
         <label for="lock-letter5">5-letter locks</label>
-        <input id="lock-letter5" type="number" min="0" max="0" value="1" />
-        <span id="avail-letter5" class="muted">0 configured</span>
+        <input id="lock-letter5" type="number" min="0" max="{{ avail.letter5 }}" value="{{ [defs.letter5, avail.letter5]|min }}"{% if avail.letter5 == 0 %} disabled{% endif %} />
+        <span id="avail-letter5" class="muted">{{ avail.letter5 }} configured</span>
       </div>
       <div class="lock-pick-row">
         <label for="lock-digit4">4-digit lockboxes</label>
-        <input id="lock-digit4" type="number" min="0" max="0" value="2" />
-        <span id="avail-digit4" class="muted">0 configured</span>
+        <input id="lock-digit4" type="number" min="0" max="{{ avail.digit4 }}" value="{{ [defs.digit4, avail.digit4]|min }}"{% if avail.digit4 == 0 %} disabled{% endif %} />
+        <span id="avail-digit4" class="muted">{{ avail.digit4 }} configured</span>
       </div>
     </fieldset>
 
@@ -96,5 +98,6 @@
     </section>
   </section>
 
+  <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
   <script src="/static/js/app.js"></script>
 {% endblock %}

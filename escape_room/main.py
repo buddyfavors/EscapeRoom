@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
-from escape_room.models import Difficulty, GameSnapshot, LockCounts, LockKind, RFID_GOOD_PERCENT
+from escape_room.models import CodePools, Difficulty, GameSnapshot, LockCounts, LockKind, RFID_GOOD_PERCENT
 from escape_room.rfid import RfidKeyboardListener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
 from escape_room.punishments_store import (
@@ -149,6 +149,27 @@ class AppState:
 state = AppState()
 
 
+def _refresh_code_pools() -> CodePools:
+    """Reload lock code pools from disk and keep the in-memory engine in sync."""
+    pools = load_code_pools()
+    state.engine.set_pools(pools)
+    return pools
+
+
+def _lock_setup_payload() -> dict[str, Any]:
+    """Available pool sizes and default lock counts for the Play screen."""
+    pools = _refresh_code_pools()
+    return {
+        "available": {
+            "digit3": len(pools.digit3),
+            "letter5": len(pools.letter5),
+            "digit4": len(pools.digit4),
+        },
+        "defaults": LockCounts().model_dump(),
+        "rfid_luck": {d.value: RFID_GOOD_PERCENT[d] for d in Difficulty},
+    }
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     logging.basicConfig(level=logging.INFO)
@@ -178,7 +199,14 @@ app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="stat
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
-    return _html(request, "index.html")
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "minigames_enabled": MINIGAMES_ENABLED,
+            "lock_setup": _lock_setup_payload(),
+        },
+    )
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -311,18 +339,7 @@ def _lock_kind_label(kind: LockKind) -> str:
 @app.get("/api/game/setup")
 async def game_setup() -> JSONResponse:
     """Pool sizes and defaults for the start-game form."""
-    pools = state.engine.get_pools()
-    return JSONResponse(
-        content={
-            "available": {
-                "digit3": len(pools.digit3),
-                "letter5": len(pools.letter5),
-                "digit4": len(pools.digit4),
-            },
-            "defaults": LockCounts().model_dump(),
-            "rfid_luck": {d.value: RFID_GOOD_PERCENT[d] for d in Difficulty},
-        }
-    )
+    return JSONResponse(content=_lock_setup_payload())
 
 
 @app.get("/api/game/status")
