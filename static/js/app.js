@@ -38,7 +38,7 @@ function selectedLockCounts() {
   };
 }
 
-function applySetup(data) {
+function applySetup(data, { resetValues = false } = {}) {
   setupData = data;
   const available = data.available || {};
   const defaults = data.defaults || {};
@@ -49,13 +49,24 @@ function applySetup(data) {
     if (input) {
       input.max = String(max);
       input.min = "0";
-      const def = Number(defaults[kind]);
-      const val = Number.isFinite(def) ? Math.min(def, max) : 0;
-      input.value = String(val);
+      if (resetValues) {
+        const def = Number(defaults[kind]);
+        const val = Number.isFinite(def) ? Math.min(def, max) : 0;
+        input.value = String(val);
+      } else {
+        const current = Math.max(0, parseInt(input.value, 10) || 0);
+        input.value = String(Math.min(current, max));
+      }
       input.disabled = max === 0;
     }
     if (label) {
-      label.textContent = max === 1 ? "1 configured" : `${max} configured`;
+      if (max === 0) {
+        label.textContent = "none available";
+      } else if (max === 1) {
+        label.textContent = "max 1";
+      } else {
+        label.textContent = `max ${max}`;
+      }
     }
   }
 }
@@ -64,7 +75,7 @@ async function loadSetup() {
   const embedded = document.getElementById("lock-setup-data");
   if (embedded && embedded.textContent) {
     try {
-      applySetup(JSON.parse(embedded.textContent));
+      applySetup(JSON.parse(embedded.textContent), { resetValues: true });
     } catch {
       /* ignore malformed embed */
     }
@@ -73,7 +84,7 @@ async function loadSetup() {
     const res = await fetch("/api/game/setup");
     if (!res.ok) return;
     const data = await res.json();
-    applySetup(data);
+    applySetup(data, { resetValues: false });
   } catch {
     /* keep server-rendered values */
   }
@@ -215,7 +226,9 @@ if (btnPlay) {
     try {
       const data = await postJson("/api/game/start", {
         difficulty: selectedDifficulty(),
-        locks,
+        digit3: locks.digit3,
+        letter5: locks.letter5,
+        digit4: locks.digit4,
       });
       setBanner("Game started — Gamemaster: open Settings to program the locks.", "ok");
       setActiveView(data.snapshot);

@@ -18,21 +18,21 @@
 
     <fieldset class="lock-picks">
       <legend>Locks in this game</legend>
-      <p class="muted lock-picks-hint">Max each row to how many codes you have configured. At least one lock total.</p>
+      <p class="muted lock-picks-hint">How many of each lock type do you want to play with? Pick at least one lock total.</p>
       <div class="lock-pick-row">
         <label for="lock-digit3">3-digit locks</label>
         <input id="lock-digit3" type="number" min="0" max="{{ avail.digit3 }}" value="{{ [defs.digit3, avail.digit3]|min }}"{% if avail.digit3 == 0 %} disabled{% endif %} />
-        <span id="avail-digit3" class="muted">{{ avail.digit3 }} configured</span>
+        <span id="avail-digit3" class="muted">{% if avail.digit3 == 0 %}none available{% elif avail.digit3 == 1 %}max 1{% else %}max {{ avail.digit3 }}{% endif %}</span>
       </div>
       <div class="lock-pick-row">
         <label for="lock-letter5">5-letter locks</label>
         <input id="lock-letter5" type="number" min="0" max="{{ avail.letter5 }}" value="{{ [defs.letter5, avail.letter5]|min }}"{% if avail.letter5 == 0 %} disabled{% endif %} />
-        <span id="avail-letter5" class="muted">{{ avail.letter5 }} configured</span>
+        <span id="avail-letter5" class="muted">{% if avail.letter5 == 0 %}none available{% elif avail.letter5 == 1 %}max 1{% else %}max {{ avail.letter5 }}{% endif %}</span>
       </div>
       <div class="lock-pick-row">
         <label for="lock-digit4">4-digit lockboxes</label>
         <input id="lock-digit4" type="number" min="0" max="{{ avail.digit4 }}" value="{{ [defs.digit4, avail.digit4]|min }}"{% if avail.digit4 == 0 %} disabled{% endif %} />
-        <span id="avail-digit4" class="muted">{{ avail.digit4 }} configured</span>
+        <span id="avail-digit4" class="muted">{% if avail.digit4 == 0 %}none available{% elif avail.digit4 == 1 %}max 1{% else %}max {{ avail.digit4 }}{% endif %}</span>
       </div>
     </fieldset>
 
@@ -99,5 +99,5 @@
   </section>
 
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v=3"></script>
 {% endblock %}

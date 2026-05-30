@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
@@ -54,7 +54,34 @@ class PunishmentsTextBody(BaseModel):
 
 class GameStartBody(BaseModel):
     difficulty: Difficulty = Difficulty.medium
-    locks: LockCounts = Field(default_factory=LockCounts)
+    digit3: int | None = Field(default=None, ge=0)
+    letter5: int | None = Field(default=None, ge=0)
+    digit4: int | None = Field(default=None, ge=0)
+    locks: LockCounts | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_lock_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        nested = out.get("locks")
+        if isinstance(nested, dict):
+            for key in ("digit3", "letter5", "digit4"):
+                if key in nested and out.get(key) is None:
+                    out[key] = nested[key]
+        return out
+
+    def lock_counts(self) -> LockCounts:
+        if self.locks is not None:
+            return self.locks
+        if any(v is not None for v in (self.digit3, self.letter5, self.digit4)):
+            return LockCounts(
+                digit3=0 if self.digit3 is None else self.digit3,
+                letter5=0 if self.letter5 is None else self.letter5,
+                digit4=0 if self.digit4 is None else self.digit4,
+            )
+        return LockCounts()
 
 
 def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
@@ -377,7 +404,7 @@ async def gm_snapshot() -> JSONResponse:
 @app.post("/api/game/start")
 async def game_start(body: GameStartBody) -> JSONResponse:
     try:
-        snap = state.engine.start(body.difficulty, body.locks)
+        snap = state.engine.start(body.difficulty, body.lock_counts())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     # Engine emits game_started; also return for clients without WS
