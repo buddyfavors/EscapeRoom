@@ -22,8 +22,70 @@ const availLabels = {
   letter5: document.getElementById("avail-letter5"),
   digit4: document.getElementById("avail-digit4"),
 };
+const gmPreviewEl = document.getElementById("gm-preview");
 
 let setupData = null;
+let previewTimer = null;
+
+function lockPayload(counts) {
+  return {
+    digit3: counts.digit3,
+    letter5: counts.letter5,
+    digit4: counts.digit4,
+  };
+}
+
+function renderGmPreview(programming, { loading = false, error = "" } = {}) {
+  if (!gmPreviewEl) return;
+  if (loading) {
+    gmPreviewEl.innerHTML = "<p>Choosing combinations…</p>";
+    gmPreviewEl.classList.add("muted");
+    return;
+  }
+  if (error) {
+    gmPreviewEl.innerHTML = `<p class="bad-text">${error}</p>`;
+    gmPreviewEl.classList.add("muted");
+    return;
+  }
+  if (!programming || !programming.length) {
+    gmPreviewEl.innerHTML = "<p>Pick at least one lock to preview combinations.</p>";
+    gmPreviewEl.classList.add("muted");
+    return;
+  }
+  let html =
+    `<p class="gm-meta"><strong>${programming.length}</strong> lock${programming.length === 1 ? "" : "s"} for this game</p>` +
+    '<table class="gm-table"><thead><tr><th>#</th><th>Type</th><th>Set lock to</th></tr></thead><tbody>';
+  for (const row of programming) {
+    html += `<tr><td>${row.index}</td><td>${row.kind_label}</td><td class="gm-code">${row.code}</td></tr>`;
+  }
+  html += "</tbody></table>";
+  gmPreviewEl.innerHTML = html;
+  gmPreviewEl.classList.remove("muted");
+}
+
+function scheduleLockPreview() {
+  if (previewTimer) window.clearTimeout(previewTimer);
+  previewTimer = window.setTimeout(() => {
+    previewTimer = null;
+    refreshLockPreview();
+  }, 350);
+}
+
+async function refreshLockPreview() {
+  if (!gmPreviewEl || (overviewView && overviewView.hidden)) return;
+  const locks = selectedLockCounts();
+  if (locks.digit3 + locks.letter5 + locks.digit4 < 1) {
+    renderGmPreview([]);
+    return;
+  }
+  renderGmPreview([], { loading: true });
+  try {
+    const data = await postJson("/api/game/preview", lockPayload(locks));
+    renderGmPreview(data.programming || []);
+  } catch (e) {
+    renderGmPreview([], { error: String(e.message || e) });
+  }
+}
 
 function selectedDifficulty() {
   const el = document.querySelector('input[name="difficulty"]:checked');
@@ -156,16 +218,15 @@ function setActiveView(snap) {
     if (wonBadge) wonBadge.hidden = true;
     renderBadCodesMeter(null);
     renderClueMinigameMeter(null);
+    scheduleLockPreview();
     return;
   }
   renderBadCodesMeter(snap);
   renderClueMinigameMeter(snap);
   if (activeDifficulty) {
     const d = (snap.difficulty || "medium").toString();
-    const pct = snap.rfid_good_percent != null ? snap.rfid_good_percent : "";
     const title = d[0].toUpperCase() + d.slice(1);
-    activeDifficulty.textContent =
-      pct !== "" && pct !== null ? `— ${title} · ${pct}% good RFID` : `— ${title}`;
+    activeDifficulty.textContent = `— ${title}`;
   }
   if (wonBadge) {
     const escaped = snap.won === true || snap.won === "true";
@@ -215,6 +276,11 @@ async function postJson(url, body) {
   return data;
 }
 
+for (const input of Object.values(lockInputs)) {
+  if (!input) continue;
+  input.addEventListener("input", scheduleLockPreview);
+  input.addEventListener("change", scheduleLockPreview);
+}
 if (btnPlay) {
   btnPlay.addEventListener("click", async () => {
     const locks = selectedLockCounts();
@@ -230,7 +296,7 @@ if (btnPlay) {
         letter5: locks.letter5,
         digit4: locks.digit4,
       });
-      setBanner("Game started — Gamemaster: open Settings to program the locks.", "ok");
+      setBanner("Game started.", "ok");
       setActiveView(data.snapshot);
     } catch (e) {
       setBanner(String(e.message || e), "bad");

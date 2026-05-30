@@ -124,7 +124,29 @@ h2 {
   margin: 0;
 }
 
-.lock-picks + .difficulty {
+.gm-preview-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px 16px;
+  margin: 0 0 4px;
+  background: rgba(255, 211, 92, 0.04);
+}
+
+.gm-preview-panel h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.gm-preview-hint {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.lock-picks + .gm-preview-panel {
+  margin-top: 4px;
+}
+
+.gm-preview-panel + .difficulty {
   margin-top: 28px;
 }
 

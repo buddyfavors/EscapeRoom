@@ -114,6 +114,10 @@ def build_slots_from_counts(
     return slots
 
 
+def _counts_equal(a: LockCounts, b: LockCounts) -> bool:
+    return a.digit3 == b.digit3 and a.letter5 == b.letter5 and a.digit4 == b.digit4
+
+
 def _normalize_submitted(kind: LockKind, raw: str) -> str:
     s = raw.strip()
     if kind == "letter5":
@@ -192,6 +196,8 @@ class GameEngine:
         self._bad_codes_streak: int = 0
         self._good_rfid_since_minigame: int = 0
         self._listeners: list[Callable[[dict], None]] = []
+        self._pending_slots: list[LockSlot] | None = None
+        self._pending_counts: LockCounts | None = None
 
     def set_pools(self, pools: CodePools) -> None:
         with self._lock:
@@ -264,6 +270,22 @@ class GameEngine:
                 rfid_good_percent=RFID_GOOD_PERCENT.get(self._difficulty, 50),
             )
 
+    def preview_locks(
+        self,
+        lock_counts: LockCounts,
+        rng: random.Random | None = None,
+    ) -> list[LockSlot]:
+        """Pick combinations for the next game without starting; stored until start() or a new preview."""
+        rng = rng or random.Random()
+        with self._lock:
+            if self._active is not None:
+                raise ValueError("Cannot preview locks while a game is running.")
+            pools = self._pools
+            slots = build_slots_from_counts(lock_counts, pools, rng)
+            self._pending_slots = [slot.model_copy(deep=True) for slot in slots]
+            self._pending_counts = lock_counts.model_copy(deep=True)
+            return [slot.model_copy(deep=True) for slot in slots]
+
     def start(
         self,
         difficulty: Difficulty,
@@ -273,7 +295,16 @@ class GameEngine:
         rng = rng or random.Random()
         with self._lock:
             pools = self._pools
-            slots = build_slots_from_counts(lock_counts, pools, rng)
+            if (
+                self._pending_slots is not None
+                and self._pending_counts is not None
+                and _counts_equal(self._pending_counts, lock_counts)
+            ):
+                slots = [slot.model_copy(deep=True) for slot in self._pending_slots]
+            else:
+                slots = build_slots_from_counts(lock_counts, pools, rng)
+            self._pending_slots = None
+            self._pending_counts = None
             self._active = slots
             self._difficulty = difficulty
             self._started_at = datetime.now(tz=timezone.utc)
@@ -293,6 +324,8 @@ class GameEngine:
             self._spent_tags.clear()
             self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
+            self._pending_slots = None
+            self._pending_counts = None
         self._emit({"type": "game_stopped"})
 
     def submit_code(self, raw: str) -> CodeAttemptResult:
