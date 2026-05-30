@@ -120,8 +120,12 @@ h2 {
 .lock-picks {
   border: 1px dashed var(--border);
   border-radius: var(--radius);
-  padding: 12px 14px 10px;
-  margin: 0 0 32px;
+  padding: 12px 14px 16px;
+  margin: 0;
+}
+
+.lock-picks + .difficulty {
+  margin-top: 28px;
 }
 
 .lock-picks legend {
