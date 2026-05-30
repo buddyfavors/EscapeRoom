@@ -9,11 +9,11 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
-from escape_room.models import Difficulty, GameSnapshot
+from escape_room.models import Difficulty, GameSnapshot, LockCounts, LockKind, RFID_GOOD_PERCENT
 from escape_room.rfid import RfidKeyboardListener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
 from escape_room.punishments_store import (
@@ -53,7 +53,8 @@ class PunishmentsTextBody(BaseModel):
 
 
 class GameStartBody(BaseModel):
-    difficulty: Difficulty = Difficulty.easy
+    difficulty: Difficulty = Difficulty.medium
+    locks: LockCounts = Field(default_factory=LockCounts)
 
 
 def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
@@ -61,6 +62,7 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         return None
     return {
         "difficulty": snap.difficulty.value,
+        "rfid_good_percent": snap.rfid_good_percent,
         "started_at_iso": snap.started_at_iso,
         "won": snap.won,
         "bad_codes_progress": snap.bad_codes_progress,
@@ -296,6 +298,33 @@ async def post_punishments_raw(body: PunishmentsTextBody) -> JSONResponse:
     return JSONResponse(content={"ok": True, "count": len(entries)})
 
 
+def _lock_kind_label(kind: LockKind) -> str:
+    if kind == "digit3":
+        return "3-digit lock"
+    if kind == "digit4":
+        return "4-digit lockbox"
+    if kind == "letter5":
+        return "5-letter lock"
+    return kind
+
+
+@app.get("/api/game/setup")
+async def game_setup() -> JSONResponse:
+    """Pool sizes and defaults for the start-game form."""
+    pools = state.engine.get_pools()
+    return JSONResponse(
+        content={
+            "available": {
+                "digit3": len(pools.digit3),
+                "letter5": len(pools.letter5),
+                "digit4": len(pools.digit4),
+            },
+            "defaults": LockCounts().model_dump(),
+            "rfid_luck": {d.value: RFID_GOOD_PERCENT[d] for d in Difficulty},
+        }
+    )
+
+
 @app.get("/api/game/status")
 async def game_status() -> JSONResponse:
     snap = state.engine.snapshot()
@@ -307,15 +336,31 @@ async def gm_snapshot() -> JSONResponse:
     """Full snapshot including lock codes (GM / backstage monitor only)."""
     snap = state.engine.snapshot()
     if snap is None:
-        return JSONResponse(content={"active": False, "snapshot": None})
-    return JSONResponse(content={"active": True, "snapshot": snap.model_dump(mode="json")})
+        return JSONResponse(content={"active": False, "snapshot": None, "programming": []})
+    programming = [
+        {
+            "index": i + 1,
+            "kind": lock.kind,
+            "kind_label": _lock_kind_label(lock.kind),
+            "code": lock.code,
+            "id": lock.id,
+        }
+        for i, lock in enumerate(snap.locks)
+    ]
+    return JSONResponse(
+        content={
+            "active": True,
+            "snapshot": snap.model_dump(mode="json"),
+            "rfid_good_percent": snap.rfid_good_percent,
+            "programming": programming,
+        }
+    )
 
 
 @app.post("/api/game/start")
 async def game_start(body: GameStartBody) -> JSONResponse:
-    difficulty = body.difficulty
     try:
-        snap = state.engine.start(difficulty)
+        snap = state.engine.start(body.difficulty, body.locks)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     # Engine emits game_started; also return for clients without WS

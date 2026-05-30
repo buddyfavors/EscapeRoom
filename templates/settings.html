@@ -5,7 +5,8 @@
     <h1>Settings</h1>
     <p class="lede">
       Edit lock code pools as JSON. Keys: <code>digit3</code> (3 digits), <code>letter5</code> (5 letters),
-      <code>digit4</code> (4 digits). Hard mode needs at least four 3-digit, two 5-letter, and four 4-digit entries.
+      <code>digit4</code> (4 digits). Any pool may be an empty array <code>[]</code> if you are not using
+      that lock type — pick counts on the Play screen up to how many codes you list here.
     </p>
 
     <label for="codes-text" class="label">Code pools (JSON)</label>
@@ -64,11 +65,18 @@
     {% endif %}
   </section>
 
-  <section class="panel secondary">
-    <h2>GM — live session</h2>
-    <p class="muted">Shows active combinations for the running game (keep off the player monitor).</p>
-    <button id="btn-refresh-gm" type="button" class="ghost">Refresh snapshot</button>
-    <pre id="gm-snapshot" class="snapshot"></pre>
+  <section class="panel secondary gm-panel">
+    <h2>GM — program the locks</h2>
+    <p class="lede">
+      When a game is running, set each physical lock to the combination below. This view is for the
+      Gamemaster only — the player screen never shows these codes.
+    </p>
+    <button id="btn-refresh-gm" type="button" class="ghost">Refresh lock list</button>
+    <div id="gm-programming" class="gm-programming muted">No active game.</div>
+    <details class="gm-raw">
+      <summary>Raw snapshot (debug)</summary>
+      <pre id="gm-snapshot" class="snapshot"></pre>
+    </details>
   </section>
 
   <section class="panel secondary">
@@ -77,7 +85,7 @@
       <li>RFID device path: set env <code>RFID_DEVICE</code> (default matches your POC reader).</li>
       <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
-      <li>Good / bad roll odds by difficulty: Easy 70/30, Medium 60/40, Hard 50/50.</li>
+      <li>RFID clue luck on Play: Easy 60% good, Medium 50%, Hard 40% (per valid badge scan).</li>
       {% if minigames_enabled %}
         <li>After every <strong>three</strong> good RFID rolls (bad punishment rolls do not count), a minigame is forced.</li>
       {% endif %}

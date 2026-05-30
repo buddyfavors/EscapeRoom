@@ -10,22 +10,20 @@ from escape_room.models import (
     CodePools,
     Difficulty,
     GameSnapshot,
+    LockCounts,
     LockKind,
     LockSlot,
     RfidTagFile,
+    RFID_GOOD_PERCENT,
 )
 from escape_room.config import MINIGAMES_ENABLED
 from escape_room.punishments_store import PunishmentEntry
 from escape_room.rfid_format import normalize_rfid_tag
 
 
-# Odds that a valid RFID scan is a "good" result (random reveal) vs a "bad"
-# result (Gamemaster punishment). Tuned per difficulty — user-facing target is
-# roughly 40% bad, with a small easier/harder swing.
+# Odds that a valid RFID scan is a "good" result vs "bad" (Gamemaster punishment).
 GOOD_SCAN_CHANCE: dict[Difficulty, float] = {
-    Difficulty.easy: 0.70,
-    Difficulty.medium: 0.60,
-    Difficulty.hard: 0.50,
+    d: RFID_GOOD_PERCENT[d] / 100.0 for d in Difficulty
 }
 
 PUNISHMENT_LINES: tuple[str, ...] = (
@@ -63,41 +61,57 @@ WHEEL_MINIGAME_DISABLED_LINES: tuple[str, ...] = (
 )
 
 
-# Physical inventory: 4× 3-digit, 2× 5-letter, 4× 4-digit.
-INVENTORY: dict[LockKind, int] = {
-    "digit3": 4,
-    "letter5": 2,
-    "digit4": 4,
-}
-
-LOCK_COUNTS: dict[Difficulty, int] = {
-    Difficulty.easy: 4,
-    Difficulty.medium: 7,
-    Difficulty.hard: 10,
-}
-
-
-def _flatten_inventory() -> list[LockKind]:
-    kinds: list[LockKind] = []
-    for kind, n in INVENTORY.items():
-        kinds.extend([kind] * n)
-    return kinds
-
-
-def build_lock_plan(difficulty: Difficulty) -> list[LockKind]:
-    if difficulty is Difficulty.hard:
-        return _flatten_inventory()
-
-    target = LOCK_COUNTS[difficulty]
-    kinds = _flatten_inventory()
-    random.shuffle(kinds)
-    return kinds[:target]
+def _kind_label(kind: LockKind) -> str:
+    if kind == "digit3":
+        return "3-digit lock"
+    if kind == "digit4":
+        return "4-digit lockbox"
+    if kind == "letter5":
+        return "5-letter lock"
+    return kind
 
 
 def _take_unique(pool: list[str], n: int, rng: random.Random) -> list[str]:
     if len(pool) < n:
         raise ValueError(f"Need at least {n} unique codes in pool, have {len(pool)}")
     return rng.sample(pool, n)
+
+
+def build_slots_from_counts(
+    counts: LockCounts,
+    pools: CodePools,
+    rng: random.Random,
+) -> list[LockSlot]:
+    """Pick random codes from configured pools; empty pool types are allowed if count is 0."""
+    if counts.total() < 1:
+        raise ValueError("Pick at least one lock to start the game.")
+
+    slots: list[LockSlot] = []
+    for kind in ("digit3", "letter5", "digit4"):
+        n = getattr(counts, kind)
+        if n == 0:
+            continue
+        pool = list(getattr(pools, kind))
+        if n > len(pool):
+            label = _kind_label(kind)
+            raise ValueError(
+                f"This game needs {n} {label}(s), but only {len(pool)} "
+                f"{'is' if len(pool) == 1 else 'are'} configured in Settings."
+            )
+        codes = _take_unique(pool, n, rng)
+        for code in codes:
+            slots.append(
+                LockSlot(
+                    id=str(uuid.uuid4()),
+                    kind=kind,
+                    code=code,
+                    solved=False,
+                    revealed=[],
+                )
+            )
+
+    random.shuffle(slots)
+    return slots
 
 
 def _normalize_submitted(kind: LockKind, raw: str) -> str:
@@ -247,34 +261,19 @@ class GameEngine:
                 good_rfid_progress=self._good_rfid_since_minigame,
                 good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
                 minigames_enabled=MINIGAMES_ENABLED,
+                rfid_good_percent=RFID_GOOD_PERCENT.get(self._difficulty, 50),
             )
 
-    def start(self, difficulty: Difficulty, rng: random.Random | None = None) -> GameSnapshot:
+    def start(
+        self,
+        difficulty: Difficulty,
+        lock_counts: LockCounts,
+        rng: random.Random | None = None,
+    ) -> GameSnapshot:
         rng = rng or random.Random()
         with self._lock:
-            plan = build_lock_plan(difficulty)
-            need: dict[LockKind, int] = {}
-            for k in plan:
-                need[k] = need.get(k, 0) + 1
-
             pools = self._pools
-            slots: list[LockSlot] = []
-
-            for kind, count in need.items():
-                pool = list(getattr(pools, kind))
-                codes = _take_unique(pool, count, rng)
-                for code in codes:
-                    slots.append(
-                        LockSlot(
-                            id=str(uuid.uuid4()),
-                            kind=kind,
-                            code=code,
-                            solved=False,
-                            revealed=[],
-                        )
-                    )
-
-            random.shuffle(slots)
+            slots = build_slots_from_counts(lock_counts, pools, rng)
             self._active = slots
             self._difficulty = difficulty
             self._started_at = datetime.now(tz=timezone.utc)
