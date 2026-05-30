@@ -64,7 +64,16 @@
           <tr><td>Hard</td><td>45%</td><td>55%</td><td>~16.6%</td></tr>
         </tbody>
       </table>
-      <p class="muted rfid-tiers-note">“3 in a row” is the chance of three consecutive bad RFID rolls before a reset (good clue or opened lock).</p>
+      <p class="muted rfid-tiers-note">“3 in a row” is the chance of three consecutive bad RFID rolls. Bad RFID scans do not reset the bad-code counter — only opening a lock does.</p>
+    </fieldset>
+
+    <fieldset class="punishment-limit">
+      <legend>Gamemaster win condition</legend>
+      <p class="muted punishment-limit-hint">How many wheel punishments before the Gamemaster wins and the room fails to escape?</p>
+      <div class="punishment-limit-row">
+        <label for="punishment-limit">Punishments allowed</label>
+        <input id="punishment-limit" type="number" min="1" max="99" value="{{ lock_setup.default_punishment_limit }}" />
+      </div>
     </fieldset>
 
     <div class="actions">
@@ -81,6 +90,7 @@
         <h1>
           Game in progress <span id="active-difficulty" class="muted"></span>
           <span id="won-badge" class="won-badge" hidden>ESCAPED</span>
+          <span id="gm-won-badge" class="gm-won-badge" hidden>GAME OVER</span>
         </h1>
         <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
       </div>
@@ -88,11 +98,19 @@
         <div
           id="bad-codes-pill"
           class="strike-pill bad-pill"
-          title="Counts consecutive bad RFID punishment rolls and wrong lock combinations. Resets when you get a good RFID clue or open a lock. At 3/3, the punishment wheel spins."
+          title="Counts consecutive bad RFID punishment rolls and wrong lock combinations. Resets only when you open a lock. At 3/3, the punishment wheel spins."
         >
           <span class="strike-label">Bad codes</span>
           <span id="bad-codes-dots" class="strike-dots"></span>
           <span id="bad-codes-count" class="strike-count">0 / 3</span>
+        </div>
+        <div
+          id="punishments-pill"
+          class="strike-pill punish-pill"
+          title="Each time the punishment wheel spins. If this reaches the limit, the Gamemaster wins."
+        >
+          <span class="strike-label">Punishments</span>
+          <span id="punishments-count" class="strike-count">0 / 3</span>
         </div>
         {% if minigames_enabled %}
           <div
@@ -108,11 +126,14 @@
       </div>
     </div>
     <p class="muted meter-hint">
-      <strong>Bad codes</strong> — wrong lock tries <em>or</em> bad RFID punishments in a row; good RFID clues and opened locks reset the streak; at 3/3 the wheel spins.
+      <strong>Bad codes</strong> — wrong lock tries <em>or</em> bad RFID punishments in a row; only opening a lock resets the streak; at 3/3 the wheel spins (no duplicate punishments).
+      <strong>Punishments</strong> — each wheel spin counts; hit the limit and the Gamemaster wins.
       {% if minigames_enabled %}
         <strong>Good codes</strong> — each good RFID roll advances 1 (bad rolls do not); at 3/3 a minigame opens next.
       {% endif %}
     </p>
+
+    <p id="last-punishment" class="last-punishment muted" hidden></p>
 
     <div id="banner" class="banner" role="status" aria-live="polite"></div>
 
@@ -123,5 +144,5 @@
   </section>
 
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=4"></script>
+  <script src="/static/js/app.js?v=5"></script>
 {% endblock %}

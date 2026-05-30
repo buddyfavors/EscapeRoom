@@ -24,6 +24,9 @@ RFID_GOOD_PERCENT: dict[Difficulty, int] = {
 }
 
 
+DEFAULT_PUNISHMENT_LIMIT = 3
+
+
 class LockCounts(BaseModel):
     """How many locks of each kind to use in one game run."""
 
@@ -92,7 +95,27 @@ class GameSnapshot(BaseModel):
     )
     bad_codes_goal: int = Field(
         default=3,
-        description="Bad codes in a row before the punishment wheel spins (reset by good RFID or opening a lock).",
+        description="Bad codes in a row before the punishment wheel spins (reset by opening a lock only).",
+    )
+    punishments_received: int = Field(
+        default=0,
+        description="How many times the punishment wheel has landed this run.",
+    )
+    punishments_limit: int = Field(
+        default=DEFAULT_PUNISHMENT_LIMIT,
+        description="Wheel punishments allowed before the Gamemaster wins.",
+    )
+    last_punishment: str | None = Field(
+        default=None,
+        description="Label for the most recent wheel punishment.",
+    )
+    gm_won: bool = Field(
+        default=False,
+        description="True when punishment limit is reached — players failed to escape.",
+    )
+    game_over: bool = Field(
+        default=False,
+        description="True when players escaped or the Gamemaster won.",
     )
     good_rfid_progress: int = Field(
         default=0,

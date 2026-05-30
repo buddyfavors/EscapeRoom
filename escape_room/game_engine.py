@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from escape_room.models import (
     CodeAttemptResult,
     CodePools,
+    DEFAULT_PUNISHMENT_LIMIT,
     Difficulty,
     GameSnapshot,
     LockCounts,
@@ -198,6 +199,11 @@ class GameEngine:
         self._listeners: list[Callable[[dict], None]] = []
         self._pending_slots: list[LockSlot] | None = None
         self._pending_counts: LockCounts | None = None
+        self._punishments_limit: int = DEFAULT_PUNISHMENT_LIMIT
+        self._punishments_received: int = 0
+        self._last_punishment: str | None = None
+        self._used_punishment_keys: set[str] = set()
+        self._gm_won: bool = False
 
     def set_pools(self, pools: CodePools) -> None:
         with self._lock:
@@ -257,6 +263,8 @@ class GameEngine:
             locks = [slot.model_copy(deep=True) for slot in self._active]
             # `all([])` is True in Python — only declare a win when there is at least one lock.
             won = bool(locks) and all(s.solved for s in locks)
+            gm_won = self._gm_won
+            game_over = won or gm_won
             return GameSnapshot(
                 difficulty=self._difficulty,
                 locks=locks,
@@ -264,6 +272,11 @@ class GameEngine:
                 won=won,
                 bad_codes_progress=self._bad_codes_streak,
                 bad_codes_goal=BAD_CODE_STREAK_TRIGGER,
+                punishments_received=self._punishments_received,
+                punishments_limit=self._punishments_limit,
+                last_punishment=self._last_punishment,
+                gm_won=gm_won,
+                game_over=game_over,
                 good_rfid_progress=self._good_rfid_since_minigame,
                 good_rfid_goal=MINIGAME_AFTER_GOOD_RFID,
                 minigames_enabled=MINIGAMES_ENABLED,
@@ -290,6 +303,7 @@ class GameEngine:
         self,
         difficulty: Difficulty,
         lock_counts: LockCounts,
+        punishment_limit: int = DEFAULT_PUNISHMENT_LIMIT,
         rng: random.Random | None = None,
     ) -> GameSnapshot:
         rng = rng or random.Random()
@@ -311,6 +325,11 @@ class GameEngine:
             self._spent_tags.clear()
             self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
+            self._punishments_limit = max(1, int(punishment_limit))
+            self._punishments_received = 0
+            self._last_punishment = None
+            self._used_punishment_keys.clear()
+            self._gm_won = False
             snap = self.snapshot()
             assert snap is not None
             self._emit({"type": "game_started", "snapshot": snap.model_dump(mode="json")})
@@ -326,6 +345,10 @@ class GameEngine:
             self._good_rfid_since_minigame = 0
             self._pending_slots = None
             self._pending_counts = None
+            self._punishments_received = 0
+            self._last_punishment = None
+            self._used_punishment_keys.clear()
+            self._gm_won = False
         self._emit({"type": "game_stopped"})
 
     def submit_code(self, raw: str) -> CodeAttemptResult:
@@ -334,14 +357,68 @@ class GameEngine:
             return self._submit_rfid(tag)
         return self._submit_lock_combination(raw)
 
+    def _game_is_playable(self) -> bool:
+        return self._active is not None and self._difficulty is not None and not self._gm_won
+
+    def _record_wheel_punishment(self, label: str) -> bool:
+        """Apply one wheel punishment; return True if the Gamemaster just won."""
+        self._punishments_received += 1
+        self._last_punishment = label
+        if self._punishments_received >= self._punishments_limit:
+            self._gm_won = True
+            return True
+        return False
+
+    def _reserve_punishment_key(self, key: str) -> None:
+        self._used_punishment_keys.add(key)
+
+    def _pick_wheel_entry(self, rng: random.Random) -> PunishmentEntry | None:
+        entries = list(self._punishments)
+        available = [e for e in entries if e.raw not in self._used_punishment_keys]
+        if not available:
+            return None
+        entry = rng.choice(available)
+        self._reserve_punishment_key(entry.raw)
+        return entry
+
+    def _pick_unique_fallback_text(self, rng: random.Random) -> tuple[str, str]:
+        for line in rng.sample(list(WHEEL_MINIGAME_DISABLED_LINES), len(WHEEL_MINIGAME_DISABLED_LINES)):
+            key = f"fallback:text:{line}"
+            if key not in self._used_punishment_keys:
+                self._reserve_punishment_key(key)
+                return line, line
+        line = rng.choice(WHEEL_MINIGAME_DISABLED_LINES)
+        return line, line
+
+    def _pick_unique_minigame_slug(self, rng: random.Random, preferred: str | None = None) -> str:
+        candidates = list(FORCED_MINIGAME_IDS)
+        if preferred and preferred in candidates:
+            key = f"minigame:{preferred}"
+            if key not in self._used_punishment_keys:
+                self._reserve_punishment_key(key)
+                return preferred
+        available = [s for s in candidates if f"minigame:{s}" not in self._used_punishment_keys]
+        if not available:
+            slug = rng.choice(candidates)
+        else:
+            slug = rng.choice(available)
+        self._reserve_punishment_key(f"minigame:{slug}")
+        return slug
+
     def _submit_rfid(self, tag: str) -> CodeAttemptResult:
         bonus_minigame_url: str | None = None
         punishment_wheel_event: dict | None = None
         with self._lock:
-            if not self._active or self._difficulty is None:
+            if not self._game_is_playable():
+                if self._gm_won:
+                    msg = "Game over — the Gamemaster wins. You failed to escape."
+                elif not self._active or self._difficulty is None:
+                    msg = "No active game."
+                else:
+                    msg = "No active game."
                 result = CodeAttemptResult(
                     ok=False,
-                    message="No active game.",
+                    message=msg,
                     interaction="lock",
                 )
                 self._emit_code_result(result)
@@ -389,7 +466,6 @@ class GameEngine:
 
             # Predictable minigame: every N good RFID rolls (only when arcade minigames are enabled).
             elif result.interaction in ("rfid_reveal", "rfid_exhausted"):
-                self._bad_codes_streak = 0
                 if MINIGAMES_ENABLED:
                     self._good_rfid_since_minigame += 1
                     if self._good_rfid_since_minigame >= MINIGAME_AFTER_GOOD_RFID:
@@ -470,8 +546,12 @@ class GameEngine:
     def _submit_lock_combination(self, raw: str) -> CodeAttemptResult:
         punishment_event: dict | None = None
         with self._lock:
-            if not self._active:
-                result = CodeAttemptResult(ok=False, message="No active game.", interaction="lock")
+            if not self._game_is_playable():
+                if self._gm_won:
+                    msg = "Game over — the Gamemaster wins. You failed to escape."
+                else:
+                    msg = "No active game."
+                result = CodeAttemptResult(ok=False, message=msg, interaction="lock")
                 self._emit_code_result(result)
                 return result
 
@@ -525,34 +605,54 @@ class GameEngine:
 
     def _spin_punishment_wheel(self) -> dict:
         """
-        Pick a random entry from the configured wheel. Falls back to a random
-        minigame if the wheel is empty. Returns the event dict to emit.
+        Pick a random unused entry from the configured wheel. Returns the event dict to emit.
         """
         rng = random.Random()
-        entries = list(self._punishments) if self._punishments else []
-        entry = rng.choice(entries) if entries else None
+        entry = self._pick_wheel_entry(rng)
 
         if entry is None or entry.kind == "minigame":
             if not MINIGAMES_ENABLED:
-                return {
+                message, label = self._pick_unique_fallback_text(rng)
+                gm_won = self._record_wheel_punishment(label)
+                event: dict = {
                     "type": "punishment_text",
                     "reason": "punishment_wheel",
-                    "message": rng.choice(WHEEL_MINIGAME_DISABLED_LINES),
+                    "message": message,
                 }
-            slug_target = entry.target if entry else "random"
-            if slug_target == "random" or slug_target not in FORCED_MINIGAME_IDS:
-                slug = rng.choice(FORCED_MINIGAME_IDS)
             else:
-                slug = slug_target
-            return {
-                "type": "forced_minigame",
-                "url": f"/minigames/{slug}?forced=1&reason=punishment",
+                slug_target = entry.target if entry else "random"
+                slug = self._pick_unique_minigame_slug(
+                    rng,
+                    None if slug_target == "random" else slug_target,
+                )
+                label = f"Minigame: {slug.replace('-', ' ').title()}"
+                gm_won = self._record_wheel_punishment(label)
+                event = {
+                    "type": "forced_minigame",
+                    "url": f"/minigames/{slug}?forced=1&reason=punishment",
+                    "reason": "punishment_wheel",
+                    "message": "The Gamemaster locks the room — your penance is a minigame.",
+                }
+        else:
+            gm_won = self._record_wheel_punishment(entry.message)
+            event = {
+                "type": "punishment_text",
                 "reason": "punishment_wheel",
-                "message": "The Gamemaster locks the room — your penance is a minigame.",
+                "message": entry.message,
             }
 
-        return {
-            "type": "punishment_text",
-            "reason": "punishment_wheel",
-            "message": entry.message,
-        }
+        if gm_won:
+            event["gm_won"] = True
+            event["game_over_message"] = (
+                f"The Gamemaster wins — {self._punishments_limit} punishments delivered. "
+                "You failed to escape!"
+            )
+            if event.get("type") == "forced_minigame":
+                event = {
+                    "type": "punishment_text",
+                    "reason": "punishment_wheel",
+                    "message": event["game_over_message"],
+                    "gm_won": True,
+                    "game_over_message": event["game_over_message"],
+                }
+        return event

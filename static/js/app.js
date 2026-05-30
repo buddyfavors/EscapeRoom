@@ -11,6 +11,11 @@ const badCodesCount = document.getElementById("bad-codes-count");
 const clueMinigamePill = document.getElementById("clue-minigame-pill");
 const clueDots = document.getElementById("clue-dots");
 const clueCount = document.getElementById("clue-count");
+const punishmentsPill = document.getElementById("punishments-pill");
+const punishmentsCount = document.getElementById("punishments-count");
+const lastPunishmentEl = document.getElementById("last-punishment");
+const gmWonBadge = document.getElementById("gm-won-badge");
+const punishmentLimitInput = document.getElementById("punishment-limit");
 
 const lockInputs = {
   digit3: document.getElementById("lock-digit3"),
@@ -87,6 +92,13 @@ async function refreshLockPreview() {
   }
 }
 
+function selectedPunishmentLimit() {
+  const raw = punishmentLimitInput?.value || "3";
+  const n = Math.max(1, Math.min(99, parseInt(raw, 10) || 3));
+  if (punishmentLimitInput) punishmentLimitInput.value = String(n);
+  return n;
+}
+
 function selectedDifficulty() {
   const el = document.querySelector('input[name="difficulty"]:checked');
   return el ? el.value : "medium";
@@ -130,6 +142,9 @@ function applySetup(data, { resetValues = false } = {}) {
         label.textContent = `max ${max}`;
       }
     }
+  }
+  if (punishmentLimitInput && data.default_punishment_limit != null) {
+    punishmentLimitInput.value = String(data.default_punishment_limit);
   }
 }
 
@@ -192,6 +207,34 @@ function renderBadCodesMeter(snap) {
   badCodesPill.classList.toggle("ready", current > 0 && current >= goal - 1);
 }
 
+function renderPunishmentsMeter(snap) {
+  if (!punishmentsPill) return;
+  if (!snap) {
+    if (punishmentsCount) punishmentsCount.textContent = "0 / 3";
+    punishmentsPill.classList.remove("ready");
+    if (lastPunishmentEl) {
+      lastPunishmentEl.hidden = true;
+      lastPunishmentEl.textContent = "";
+    }
+    return;
+  }
+  const limit = Math.max(1, Number(snap.punishments_limit) || 3);
+  const current = Math.max(0, Math.min(limit, Number(snap && snap.punishments_received) || 0));
+  if (punishmentsCount) punishmentsCount.textContent = `${current} / ${limit}`;
+  punishmentsPill.classList.toggle("ready", current > 0 && current >= limit - 1);
+
+  if (lastPunishmentEl) {
+    const last = snap && snap.last_punishment ? String(snap.last_punishment) : "";
+    if (last) {
+      lastPunishmentEl.hidden = false;
+      lastPunishmentEl.textContent = `Last punishment: ${last}`;
+    } else {
+      lastPunishmentEl.hidden = true;
+      lastPunishmentEl.textContent = "";
+    }
+  }
+}
+
 function renderClueMinigameMeter(snap) {
   if (!clueMinigamePill) return;
   const goal = Math.max(1, Number(snap && snap.good_rfid_goal) || 3);
@@ -216,12 +259,15 @@ function setActiveView(snap) {
   if (!active) {
     if (locksEl) locksEl.innerHTML = "";
     if (wonBadge) wonBadge.hidden = true;
+    if (gmWonBadge) gmWonBadge.hidden = true;
     renderBadCodesMeter(null);
+    renderPunishmentsMeter(null);
     renderClueMinigameMeter(null);
     scheduleLockPreview();
     return;
   }
   renderBadCodesMeter(snap);
+  renderPunishmentsMeter(snap);
   renderClueMinigameMeter(snap);
   if (activeDifficulty) {
     const d = (snap.difficulty || "medium").toString();
@@ -231,6 +277,10 @@ function setActiveView(snap) {
   if (wonBadge) {
     const escaped = snap.won === true || snap.won === "true";
     wonBadge.hidden = !escaped;
+  }
+  if (gmWonBadge) {
+    const gmWon = snap.gm_won === true || snap.gm_won === "true";
+    gmWonBadge.hidden = !gmWon;
   }
   locksEl.innerHTML = "";
   for (const lock of snap.locks) {
@@ -295,6 +345,7 @@ if (btnPlay) {
         digit3: locks.digit3,
         letter5: locks.letter5,
         digit4: locks.digit4,
+        punishment_limit: selectedPunishmentLimit(),
       });
       setBanner("Game started.", "ok");
       setActiveView(data.snapshot);
@@ -314,7 +365,11 @@ function applyWsMessage(msg) {
   if (msg.type === "game_started" || msg.type === "code_result") {
     if (msg.snapshot) setActiveView(msg.snapshot);
     if (msg.type === "code_result" && msg.result) {
-      setBanner(msg.result.message, bannerToneForResult(msg.result));
+      if (msg.snapshot && (msg.snapshot.gm_won === true || msg.snapshot.gm_won === "true")) {
+        setBanner("The Gamemaster wins — you failed to escape!", "bad");
+      } else {
+        setBanner(msg.result.message, bannerToneForResult(msg.result));
+      }
     }
     return;
   }
@@ -324,6 +379,10 @@ function applyWsMessage(msg) {
     return;
   }
   if (msg.type === "forced_minigame" && msg.url) {
+    if (msg.gm_won) {
+      setBanner(msg.game_over_message || "The Gamemaster wins — you failed to escape!", "bad");
+      return;
+    }
     const scheduled = msg.reason === "three_clues" || msg.reason === "good_scan_bonus";
     const tone = scheduled ? "ok" : "bad";
     const text =
@@ -338,7 +397,10 @@ function applyWsMessage(msg) {
     return;
   }
   if (msg.type === "punishment_text") {
-    setBanner("Punishment: " + (msg.message || "The Gamemaster claims this one."), "bad");
+    const text = msg.gm_won
+      ? msg.game_over_message || "The Gamemaster wins — you failed to escape!"
+      : "Punishment: " + (msg.message || "The Gamemaster claims this one.");
+    setBanner(text, "bad");
     return;
   }
 }
