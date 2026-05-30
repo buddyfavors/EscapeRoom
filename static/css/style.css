@@ -117,6 +117,32 @@ h2 {
   cursor: pointer;
 }
 
+.rfid-tiers {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0 10px;
+  font-size: 0.88rem;
+}
+
+.rfid-tiers th,
+.rfid-tiers td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.rfid-tiers th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rfid-tiers-note {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 .lock-picks {
   border: 1px dashed var(--border);
   border-radius: var(--radius);

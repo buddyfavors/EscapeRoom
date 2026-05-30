@@ -46,9 +46,25 @@
 
     <fieldset class="difficulty">
       <legend>RFID clue luck</legend>
-      <label><input type="radio" name="difficulty" value="easy" /> Easy — 60% good scans</label>
-      <label><input type="radio" name="difficulty" value="medium" checked /> Medium — 50% good scans</label>
-      <label><input type="radio" name="difficulty" value="hard" /> Hard — 40% good scans</label>
+      <label><input type="radio" name="difficulty" value="easy" /> Easy — 75% good · 25% bad</label>
+      <label><input type="radio" name="difficulty" value="medium" checked /> Medium — 60% good · 40% bad</label>
+      <label><input type="radio" name="difficulty" value="hard" /> Hard — 45% good · 55% bad</label>
+      <table class="rfid-tiers muted">
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Good RFID</th>
+            <th>Bad RFID</th>
+            <th>3 bad scans in a row</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Easy</td><td>75%</td><td>25%</td><td>~1.5%</td></tr>
+          <tr><td>Medium</td><td>60%</td><td>40%</td><td>~6.4%</td></tr>
+          <tr><td>Hard</td><td>45%</td><td>55%</td><td>~16.6%</td></tr>
+        </tbody>
+      </table>
+      <p class="muted rfid-tiers-note">“3 in a row” is the chance of three consecutive bad RFID rolls before a reset (good clue or opened lock).</p>
     </fieldset>
 
     <div class="actions">
