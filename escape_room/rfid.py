@@ -1,107 +1,34 @@
 from __future__ import annotations
 
-import logging
-import threading
-import time
-from collections.abc import Callable
+import sys
 
-logger = logging.getLogger(__name__)
-
-try:
-    from evdev import InputDevice, ecodes
-except ImportError:  # pragma: no cover - Windows / non-Linux dev
-    InputDevice = None  # type: ignore[misc, assignment]
-    ecodes = None  # type: ignore[misc, assignment]
+from escape_room.rfid_common import DEFAULT_LINUX_DEVICE_PATH, DigitHandler, RfidListener
 
 
-DigitHandler = Callable[[str], None]
-
-
-def _digit_from_event_code(code: int) -> str | None:
-    if ecodes is None:
-        return None
-    mapping = {
-        ecodes.KEY_0: "0",
-        ecodes.KEY_1: "1",
-        ecodes.KEY_2: "2",
-        ecodes.KEY_3: "3",
-        ecodes.KEY_4: "4",
-        ecodes.KEY_5: "5",
-        ecodes.KEY_6: "6",
-        ecodes.KEY_7: "7",
-        ecodes.KEY_8: "8",
-        ecodes.KEY_9: "9",
-    }
-    return mapping.get(code)
-
-
-class RfidKeyboardListener:
+def create_rfid_listener(device_spec: str, on_submit_buffer: DigitHandler) -> RfidListener:
     """
-    Listens for keyboard-style RFID reader events (digits + Enter).
-    Runs in a background thread; calls on_submit_buffer when Enter is pressed.
+    Create a platform-appropriate RFID keyboard listener.
+
+    - Linux / Raspberry Pi: evdev on RFID_DEVICE path
+    - Windows: Raw Input on the matching HID keyboard device
     """
+    if sys.platform == "win32":
+        from escape_room.rfid_windows import WindowsRfidListener
 
-    # Ignore the same buffer twice in a row within this window (reader double-fires Enter).
-    _DEDUPE_S = 0.85
+        return WindowsRfidListener(device_spec, on_submit_buffer)
 
-    def __init__(self, device_path: str, on_submit_buffer: DigitHandler) -> None:
-        self._device_path = device_path
-        self._on_submit = on_submit_buffer
-        self._thread: threading.Thread | None = None
-        self._stop = threading.Event()
-        self._last_submit: str | None = None
-        self._last_submit_mono: float = 0.0
+    from escape_room.rfid_evdev import EvdevRfidListener
 
-    def start(self) -> bool:
-        if InputDevice is None:
-            logger.warning("evdev not installed; RFID listener disabled.")
-            return False
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._run, name="rfid-listener", daemon=True)
-        self._thread.start()
-        return True
+    return EvdevRfidListener(device_spec, on_submit_buffer)
 
-    def stop(self) -> None:
-        self._stop.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
-        self._thread = None
 
-    def _run(self) -> None:
-        try:
-            dev = InputDevice(self._device_path)
-        except OSError as e:
-            logger.warning("RFID device not available (%s): %s", self._device_path, e)
-            return
+# Backward-compatible alias used by main.py imports.
+RfidKeyboardListener = create_rfid_listener
 
-        buffer = ""
-        try:
-            for event in dev.read_loop():
-                if self._stop.is_set():
-                    break
-                if event.type != ecodes.EV_KEY or event.value != 1:
-                    continue
-                digit = _digit_from_event_code(event.code)
-                if digit is not None:
-                    buffer += digit
-                    continue
-                if event.code == ecodes.KEY_ENTER:
-                    submitted = buffer
-                    buffer = ""
-                    if not submitted:
-                        continue
-                    now = time.monotonic()
-                    if (
-                        submitted == self._last_submit
-                        and (now - self._last_submit_mono) < self._DEDUPE_S
-                    ):
-                        logger.debug("RFID duplicate submit suppressed: %s", submitted[:4] + "…")
-                        continue
-                    self._last_submit = submitted
-                    self._last_submit_mono = now
-                    self._on_submit(submitted)
-        finally:
-            try:
-                dev.close()
-            except OSError:
-                pass
+__all__ = [
+    "DEFAULT_LINUX_DEVICE_PATH",
+    "DigitHandler",
+    "RfidKeyboardListener",
+    "RfidListener",
+    "create_rfid_listener",
+]

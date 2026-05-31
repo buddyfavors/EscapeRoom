@@ -111,7 +111,12 @@
   <section class="panel secondary">
     <h2>Hardware notes</h2>
     <ul class="list">
-      <li>RFID device path: set env <code>RFID_DEVICE</code> (default matches your POC reader).</li>
+      <li>
+        RFID device: set env <code>RFID_DEVICE</code>. On Raspberry Pi this is the evdev path under
+        <code>/dev/input/by-id/</code> (default matches the POC reader). On Windows the app uses Raw Input and
+        matches the same reader via a HID path substring or <code>VID_xxxx&amp;PID_yyyy</code> — check the server
+        log on startup if auto-detection fails.
+      </li>
       <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
       <li><strong>Breakout</strong> — locks + wheel on every 3rd bad code. <strong>Deadline</strong> — timer punishments + 30s time shave on bad codes. <strong>Bounty</strong> — rewards from good scans, no locks.</li>

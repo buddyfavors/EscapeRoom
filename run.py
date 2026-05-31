@@ -1,4 +1,4 @@
-"""Run the escape room web server (use on Raspberry Pi with requirements-rpi.txt for RFID)."""
+"""Run the escape room web server (RFID: evdev on Pi, Raw Input on Windows)."""
 
 from __future__ import annotations
 
