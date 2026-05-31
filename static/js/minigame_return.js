@@ -45,6 +45,12 @@
     if (countdownTimer) window.clearInterval(countdownTimer);
     returnTimer = null;
     countdownTimer = null;
+    if (forced && reason === "punishment") {
+      fetch("/api/game/punishment-complete", { method: "POST" }).finally(() => {
+        window.location.href = "/";
+      });
+      return;
+    }
     window.location.href = "/";
   }
 

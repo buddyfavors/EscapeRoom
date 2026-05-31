@@ -6,8 +6,39 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+class GameMode(str, Enum):
+    """Which escape-room ruleset is active."""
+
+    breakout = "breakout"
+    deadline = "deadline"
+    bounty = "bounty"
+
+
+class BountyTheme(str, Enum):
+    """How bad codes behave in Bounty mode."""
+
+    breakout = "breakout"
+    deadline = "deadline"
+
+
+class GamePhase(str, Enum):
+    """Deadline-mode cycle phase (other modes stay on playing)."""
+
+    playing = "playing"
+    punishment = "punishment"
+    collection = "collection"
+
+
+class PunishmentResolution(str, Enum):
+    """Active punishment wheel flow (all modes)."""
+
+    none = "none"
+    trump_window = "trump_window"
+    completing = "completing"
+
+
 class Difficulty(str, Enum):
-    """RFID clue luck — higher = more good scans (reveals)."""
+    """RFID PRD tier — how fast bad-scan odds rise after good scans (same base luck for all)."""
 
     easy = "easy"
     medium = "medium"
@@ -16,31 +47,47 @@ class Difficulty(str, Enum):
 
 LockKind = Literal["digit3", "letter5", "digit4"]
 
-# Chance a valid RFID scan is "good" (reveals a clue), by difficulty.
+# Base RFID luck (same for every tier). Difficulty only changes PRD escalation below.
+RFID_GOOD_PERCENT_BASE = 45
 RFID_GOOD_PERCENT: dict[Difficulty, int] = {
-    Difficulty.easy: 75,
-    Difficulty.medium: 60,
-    Difficulty.hard: 45,
+    d: RFID_GOOD_PERCENT_BASE for d in Difficulty
 }
 
 # PRD: after each good RFID scan in a row, bad chance rises by this much (RFID-heavy runs).
 RFID_PRD_BAD_INCREMENT: dict[Difficulty, float] = {
     Difficulty.easy: 0.07,
-    Difficulty.medium: 0.09,
-    Difficulty.hard: 0.11,
+    Difficulty.medium: 0.11,
+    Difficulty.hard: 0.14,
 }
 RFID_PRD_BAD_CAP = 0.92
 
 
 DEFAULT_PUNISHMENT_LIMIT = 3
+DEFAULT_TIMER_MINUTES = 10
+DEFAULT_RFIDS_PER_PUNISHMENT = 4
+DEFAULT_GOOD_CODES_PER_REWARD = 5
+DEFAULT_REWARDS_TO_WIN = 5
+DEADLINE_BAD_CODE_TIME_PENALTY_SEC = 30
+DEFAULT_FINAL_COUNTDOWN_START_AFTER = 3
+FINAL_COUNTDOWN_SHRINK_FACTOR = 0.9
+MIN_TIMER_DURATION_SEC = 60
+TRUMP_WINDOW_SEC = 60
+PUNISHMENT_COMPLETE_SEC = 60
+WHEEL_SPIN_UI_SEC = 4
+
+GAME_MODE_LABELS: dict[GameMode, str] = {
+    GameMode.breakout: "Breakout",
+    GameMode.deadline: "Deadline",
+    GameMode.bounty: "Bounty",
+}
 
 
 class LockCounts(BaseModel):
     """How many locks of each kind to use in one game run."""
 
     digit3: int = Field(default=0, ge=0)
-    letter5: int = Field(default=1, ge=0)
-    digit4: int = Field(default=2, ge=0)
+    letter5: int = Field(default=0, ge=0)
+    digit4: int = Field(default=0, ge=0)
 
     def total(self) -> int:
         return self.digit3 + self.letter5 + self.digit4
@@ -89,16 +136,100 @@ class LockSlot(BaseModel):
 
 
 class GameSnapshot(BaseModel):
+    game_mode: GameMode = GameMode.breakout
+    phase: GamePhase = GamePhase.playing
     difficulty: Difficulty
     locks: list[LockSlot]
     started_at_iso: str | None = None
     won: bool = False
+    timer_duration_sec: int | None = Field(
+        default=None,
+        description="Deadline mode: length of each countdown segment in seconds.",
+    )
+    timer_ends_at_iso: str | None = Field(
+        default=None,
+        description="Deadline mode: when the current playing-phase countdown hits zero (UTC ISO).",
+    )
+    timer_seconds_remaining: int | None = Field(
+        default=None,
+        description="Deadline mode: seconds left on the active countdown (computed server-side).",
+    )
+    deadline_cycle: int = Field(
+        default=1,
+        description="Deadline mode: current countdown round (1-based).",
+    )
+    final_countdown_enabled: bool = Field(
+        default=False,
+        description="Deadline mode: shrink timer 10% each cycle after start_after rounds.",
+    )
+    final_countdown_start_after: int = Field(
+        default=DEFAULT_FINAL_COUNTDOWN_START_AFTER,
+        description="Deadline mode: full-length rounds before Final Countdown shrink begins.",
+    )
+    gamemaster_name: str = Field(default="Gamemaster")
+    mercy_free_scan_available: bool = Field(
+        default=True,
+        description="GM can still grant one forced-good RFID scan this game.",
+    )
+    mercy_free_scan_pending: bool = Field(
+        default=False,
+        description="Next regular RFID scan is forced good (mercy or wildcard).",
+    )
+    punishment_resolution: PunishmentResolution = Field(
+        default=PunishmentResolution.none,
+        description="Trump skip window or punishment completion countdown.",
+    )
+    pending_punishment_label: str | None = Field(default=None)
+    pending_punishment_message: str | None = Field(default=None)
+    pending_punishment_is_minigame: bool = Field(default=False)
+    punishment_timer_seconds_remaining: int | None = Field(
+        default=None,
+        description="Seconds left in trump window or completion phase.",
+    )
+    punishment_timer_kind: str | None = Field(
+        default=None,
+        description="trump or complete — which countdown is active.",
+    )
+    wildcard_free_good_used: bool = Field(default=False)
+    wildcard_trump_used: bool = Field(default=False)
+    rfids_per_punishment: int = Field(
+        default=DEFAULT_RFIDS_PER_PUNISHMENT,
+        description="Deadline mode: RFID scans required after each timer punishment.",
+    )
+    rfids_collected: int = Field(
+        default=0,
+        description="Deadline mode: RFIDs scanned so far in the current collection phase.",
+    )
+    bounty_theme: BountyTheme | None = Field(
+        default=None,
+        description="Bounty mode: how bad codes are penalized.",
+    )
+    good_codes_per_reward: int = Field(
+        default=DEFAULT_GOOD_CODES_PER_REWARD,
+        description="Bounty mode: good RFID rolls needed to earn one reward.",
+    )
+    good_codes_progress: int = Field(
+        default=0,
+        description="Bounty mode: progress toward the next reward.",
+    )
+    rewards_earned: int = Field(
+        default=0,
+        description="Bounty mode: rewards collected so far.",
+    )
+    rewards_to_win: int = Field(
+        default=DEFAULT_REWARDS_TO_WIN,
+        description="Bounty mode: rewards required for players to win.",
+    )
+    bad_code_effect: str = Field(
+        default="wheel",
+        description="UI hint: wheel | time_penalty | lose_progress",
+    )
     rfid_good_percent: int = Field(
-        default=60,
-        description="Percent chance a valid RFID scan is good (reveals a clue).",
+        default=45,
+        description="Percent chance a valid RFID scan is good (reveals a clue); same base for all tiers.",
     )
     rfid_bad_chance_percent: int = Field(
-        default=40,
+        default=55,
         description="Current bad-scan chance for the next RFID roll (PRD — rises after good scans).",
     )
     bad_codes_progress: int = Field(
@@ -107,7 +238,7 @@ class GameSnapshot(BaseModel):
     )
     bad_codes_goal: int = Field(
         default=3,
-        description="Bad codes in a row before the punishment wheel spins (reset by opening a lock only).",
+        description="Bad codes before the punishment wheel spins (every 3rd bad; counter never resets mid-game).",
     )
     punishments_received: int = Field(
         default=0,
@@ -184,6 +315,10 @@ class CodeAttemptResult(BaseModel):
         "rfid_unknown",
         "rfid_spent",
         "rfid_exhausted",
+        "rfid_collect",
+        "rfid_good",
+        "wildcard_good",
+        "wildcard_trump",
     ] = "lock"
     reveal: dict[str, Any] | None = Field(
         default=None,

@@ -8,6 +8,7 @@ DATA_DIR = ROOT_DIR / "data"
 CODES_FILE = DATA_DIR / "codes.json"
 RFID_TAGS_FILE = DATA_DIR / "rfid_tags.txt"
 PUNISHMENTS_FILE = DATA_DIR / "punishments.txt"
+ROOM_SETTINGS_FILE = DATA_DIR / "room_settings.json"
 
 # Default matches the original POC device path (override on Pi or other installs).
 RFID_DEVICE_PATH = os.environ.get(
