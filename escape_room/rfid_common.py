@@ -73,7 +73,7 @@ def device_name_matcher(spec: str) -> Callable[[str], bool]:
 
     Supports:
     - Linux evdev paths (/dev/input/by-id/…)
-    - Windows HID paths (\\?\HID#VID_xxxx&PID_yyyy#…)
+    - Windows HID paths (``\\?\\HID#VID_xxxx&PID_yyyy#…``)
     - Explicit VID/PID tokens (VID_0483&PID_5750)
     - Plain substring matches
     """

@@ -12,6 +12,7 @@ from escape_room.models import (
     CodePools,
     DEFAULT_GOOD_CODES_PER_REWARD,
     DEFAULT_PUNISHMENT_LIMIT,
+    UNLIMITED_PUNISHMENT_LIMIT,
     DEFAULT_REWARDS_TO_WIN,
     DEFAULT_RFIDS_PER_PUNISHMENT,
     DEFAULT_TIMER_MINUTES,
@@ -35,7 +36,7 @@ from escape_room.models import (
     RFID_PRD_BAD_INCREMENT,
 )
 from escape_room.config import MINIGAMES_ENABLED
-from escape_room.punishments_store import PunishmentEntry
+from escape_room.punishments_store import PunishmentEntry, split_punishment_display
 from escape_room.rfid_format import normalize_rfid_tag
 from escape_room.room_settings_store import (
     DEFAULT_BAD_SCAN_PHRASES,
@@ -227,7 +228,7 @@ class GameEngine:
         self._listeners: list[Callable[[dict], None]] = []
         self._pending_slots: list[LockSlot] | None = None
         self._pending_counts: LockCounts | None = None
-        self._punishments_limit: int = DEFAULT_PUNISHMENT_LIMIT
+        self._punishments_limit: int = UNLIMITED_PUNISHMENT_LIMIT
         self._punishments_received: int = 0
         self._last_punishment: str | None = None
         self._used_punishment_keys: set[str] = set()
@@ -250,8 +251,6 @@ class GameEngine:
         self._deadline_cycle: int = 1
         self._final_countdown_enabled: bool = False
         self._final_countdown_start_after: int = DEFAULT_FINAL_COUNTDOWN_START_AFTER
-        self._mercy_free_scan_available: bool = True
-        self._mercy_free_scan_pending: bool = False
         self._wildcard_free_good_used: bool = False
         self._wildcard_trump_used: bool = False
         self._punishment_resolution: PunishmentResolution = PunishmentResolution.none
@@ -367,8 +366,6 @@ class GameEngine:
                 ),
                 final_countdown_start_after=self._final_countdown_start_after,
                 gamemaster_name=self._gm_name(),
-                mercy_free_scan_available=self._mercy_free_scan_available,
-                mercy_free_scan_pending=self._mercy_free_scan_pending,
                 punishment_resolution=self._punishment_resolution,
                 pending_punishment_label=(
                     self._pending_punishment.get("label") if self._pending_punishment else None
@@ -463,7 +460,14 @@ class GameEngine:
             self._spent_tags.clear()
             self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
-            self._punishments_limit = max(1, int(punishment_limit))
+            if game_mode is GameMode.breakout:
+                limit = int(punishment_limit)
+                if limit <= 0:
+                    self._punishments_limit = UNLIMITED_PUNISHMENT_LIMIT
+                else:
+                    self._punishments_limit = max(1, min(99, limit))
+            else:
+                self._punishments_limit = UNLIMITED_PUNISHMENT_LIMIT
             self._punishments_received = 0
             self._last_punishment = None
             self._used_punishment_keys.clear()
@@ -476,8 +480,6 @@ class GameEngine:
             self._good_codes_progress = 0
             self._rewards_earned = 0
             self._rewards_to_win = max(1, min(99, int(rewards_to_win)))
-            self._mercy_free_scan_available = True
-            self._mercy_free_scan_pending = False
             self._wildcard_free_good_used = False
             self._wildcard_trump_used = False
             self._clear_punishment_resolution_locked()
@@ -518,8 +520,6 @@ class GameEngine:
             self._good_codes_progress = 0
             self._rewards_earned = 0
             self._bounty_theme = None
-            self._mercy_free_scan_available = True
-            self._mercy_free_scan_pending = False
             self._wildcard_free_good_used = False
             self._wildcard_trump_used = False
             self._clear_punishment_resolution_locked()
@@ -783,7 +783,13 @@ class GameEngine:
                 }
                 selected_label = label
         else:
-            pending = {"kind": "text", "label": entry.message, "message": entry.message}
+            title, body = split_punishment_display(entry.message)
+            pending = {
+                "kind": "text",
+                "label": title,
+                "message": body,
+                "record": entry.message,
+            }
             selected_label = entry.message
 
         selected_index = 0
@@ -822,8 +828,8 @@ class GameEngine:
         if pending is None:
             return {"type": "punishment_resolved", "message": "Punishment cleared."}
 
-        label = pending["label"]
-        gm_won = self._record_wheel_punishment(label)
+        record = pending.get("record") or pending["message"] or pending["label"]
+        gm_won = self._record_wheel_punishment(record)
         gm = self._gm_name()
 
         if gm_won:
@@ -966,20 +972,6 @@ class GameEngine:
             self._emit({"type": "punishment_complete", "snapshot": snap_payload})
         return True
 
-    def grant_mercy_free_scan(self) -> bool:
-        """Once per game: next regular RFID scan is forced good."""
-        snap_payload: dict | None = None
-        with self._lock:
-            if not self._game_is_playable() or not self._mercy_free_scan_available:
-                return False
-            self._mercy_free_scan_available = False
-            self._mercy_free_scan_pending = True
-            snap = self.snapshot()
-            snap_payload = snap.model_dump(mode="json") if snap else None
-        if snap_payload is not None:
-            self._emit({"type": "mercy_granted", "snapshot": snap_payload})
-        return True
-
     def _force_good_rfid_locked(
         self,
         rng: random.Random,
@@ -1063,7 +1055,10 @@ class GameEngine:
         """Apply one wheel punishment; return True if the Gamemaster just won."""
         self._punishments_received += 1
         self._last_punishment = label
-        if self._punishments_received >= self._punishments_limit:
+        if (
+            self._punishments_limit > 0
+            and self._punishments_received >= self._punishments_limit
+        ):
             self._gm_won = True
             return True
         return False
@@ -1272,53 +1267,42 @@ class GameEngine:
                 slots = self._active
                 assert slots is not None
 
-                if self._mercy_free_scan_pending:
-                    self._mercy_free_scan_pending = False
-                    self._spent_tags.add(tag)
-                    result = self._force_good_rfid_locked(
-                        rng,
-                        prefix=self._format_msg("Mercy grant — forced good scan!"),
-                    )
+                if mode is GameMode.bounty:
+                    result = self._roll_bounty_rfid_outcome(difficulty, rng)
+                elif mode is GameMode.deadline:
+                    result = self._roll_deadline_rfid_outcome(difficulty, rng)
+                else:
+                    result = self._roll_rfid_outcome(slots, difficulty, rng)
+
+                self._spent_tags.add(tag)
+
+                if result.interaction == "rfid_punishment":
+                    self._rfid_consecutive_good_scans = 0
+                    self._bad_codes_streak += 1
+                    if mode is GameMode.deadline:
+                        tail = self._apply_deadline_time_penalty_locked()
+                    elif mode is GameMode.bounty:
+                        tail, wheel = self._apply_bounty_bad_streak_locked()
+                        if wheel is not None:
+                            punishment_wheel_event = wheel
+                            tail = " The wheel of punishments has spoken."
+                    else:
+                        triggered = self._bad_codes_wheel_triggered()
+                        if triggered:
+                            punishment_wheel_event = self._spin_punishment_wheel()
+                            tail = " The wheel of punishments has spoken."
+                        else:
+                            tail = (
+                                f" ({self._bad_codes_meter()}/{BAD_CODE_STREAK_TRIGGER} bad codes — "
+                                f"{self._gm_name()} is counting.)"
+                            )
+                    result = result.model_copy(update={"message": result.message + tail})
+
+                elif result.interaction in ("rfid_reveal", "rfid_exhausted", "rfid_good"):
                     self._rfid_consecutive_good_scans += 1
                     bonus_minigame_url = self._maybe_bonus_minigame_after_good_locked(rng)
-                    self._emit_code_result(result)
-                else:
-                    if mode is GameMode.bounty:
-                        result = self._roll_bounty_rfid_outcome(difficulty, rng)
-                    elif mode is GameMode.deadline:
-                        result = self._roll_deadline_rfid_outcome(difficulty, rng)
-                    else:
-                        result = self._roll_rfid_outcome(slots, difficulty, rng)
 
-                    self._spent_tags.add(tag)
-
-                    if result.interaction == "rfid_punishment":
-                        self._rfid_consecutive_good_scans = 0
-                        self._bad_codes_streak += 1
-                        if mode is GameMode.deadline:
-                            tail = self._apply_deadline_time_penalty_locked()
-                        elif mode is GameMode.bounty:
-                            tail, wheel = self._apply_bounty_bad_streak_locked()
-                            if wheel is not None:
-                                punishment_wheel_event = wheel
-                                tail = " The wheel of punishments has spoken."
-                        else:
-                            triggered = self._bad_codes_wheel_triggered()
-                            if triggered:
-                                punishment_wheel_event = self._spin_punishment_wheel()
-                                tail = " The wheel of punishments has spoken."
-                            else:
-                                tail = (
-                                    f" ({self._bad_codes_meter()}/{BAD_CODE_STREAK_TRIGGER} bad codes — "
-                                    f"{self._gm_name()} is counting.)"
-                                )
-                        result = result.model_copy(update={"message": result.message + tail})
-
-                    elif result.interaction in ("rfid_reveal", "rfid_exhausted", "rfid_good"):
-                        self._rfid_consecutive_good_scans += 1
-                        bonus_minigame_url = self._maybe_bonus_minigame_after_good_locked(rng)
-
-                    self._emit_code_result(result)
+                self._emit_code_result(result)
 
         if trump_used_event is not None:
             self._emit(trump_used_event)

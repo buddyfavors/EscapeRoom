@@ -63,6 +63,8 @@ RFID_PRD_BAD_CAP = 0.92
 
 
 DEFAULT_PUNISHMENT_LIMIT = 3
+UNLIMITED_PUNISHMENT_LIMIT = 0
+DEFAULT_PUNISHMENT_LIMIT_ENABLED = False
 DEFAULT_TIMER_MINUTES = 10
 DEFAULT_RFIDS_PER_PUNISHMENT = 4
 DEFAULT_GOOD_CODES_PER_REWARD = 5
@@ -167,14 +169,6 @@ class GameSnapshot(BaseModel):
         description="Deadline mode: full-length rounds before Final Countdown shrink begins.",
     )
     gamemaster_name: str = Field(default="Gamemaster")
-    mercy_free_scan_available: bool = Field(
-        default=True,
-        description="GM can still grant one forced-good RFID scan this game.",
-    )
-    mercy_free_scan_pending: bool = Field(
-        default=False,
-        description="Next regular RFID scan is forced good (mercy or wildcard).",
-    )
     punishment_resolution: PunishmentResolution = Field(
         default=PunishmentResolution.none,
         description="Trump skip window or punishment completion countdown.",
@@ -245,8 +239,8 @@ class GameSnapshot(BaseModel):
         description="How many times the punishment wheel has landed this run.",
     )
     punishments_limit: int = Field(
-        default=DEFAULT_PUNISHMENT_LIMIT,
-        description="Wheel punishments allowed before the Gamemaster wins.",
+        default=UNLIMITED_PUNISHMENT_LIMIT,
+        description="Wheel punishments allowed before the Gamemaster wins (0 = unlimited; Breakout only).",
     )
     last_punishment: str | None = Field(
         default=None,
