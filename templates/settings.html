@@ -40,9 +40,38 @@
   </section>
 
   <section class="panel">
+    <h2>Room copy &amp; wildcard badges</h2>
+    <p class="lede">
+      Customize the <strong>Gamemaster</strong> name shown in messages. Bad-scan phrases use
+      <code>{gm}</code> as a placeholder. Configure two special 10-digit RFID badges: one forces a
+      good scan, one for the trump skip badge (scan only during the 1-minute window after the wheel lands).
+    </p>
+    <label for="gm-name" class="label">Gamemaster name</label>
+    <input id="gm-name" type="text" class="text-input" maxlength="40" placeholder="Gamemaster" />
+
+    <label for="bad-phrases-text" class="label">Bad RFID scan phrases (one per line)</label>
+    <textarea id="bad-phrases-text" class="codes" spellcheck="false" placeholder="Bad scan — {gm} laughs."></textarea>
+
+    <div class="punishment-limit-row">
+      <label for="wildcard-good-tag">Wildcard badge — guaranteed good scan</label>
+      <input id="wildcard-good-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
+    </div>
+    <div class="punishment-limit-row">
+      <label for="wildcard-trump-tag">Trump badge — skip during 1-minute wheel window</label>
+      <input id="wildcard-trump-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
+    </div>
+
+    <div class="actions">
+      <button id="btn-save-room" type="button" class="primary">Save room settings</button>
+      <button id="btn-reload-room" type="button" class="ghost">Reload</button>
+    </div>
+    <div id="save-msg-room" class="banner" role="status"></div>
+  </section>
+
+  <section class="panel">
     <h2>Wheel of punishments</h2>
     <p class="lede">
-      After <strong>three bad codes in a row</strong> (wrong lock combinations and/or bad RFID punishment rolls; only opening a lock resets the count), the wheel spins and one line below is
+      After <strong>every third bad code</strong> (wrong lock combinations and/or bad RFID punishment rolls; the counter never resets), the wheel spins and one line below is
       chosen at random — <strong>no punishment repeats</strong> in the same game. Lines starting with <code>minigame</code> launch a minigame (use
       <code>minigame</code> for random, or <code>minigame:&lt;slug&gt;</code> for a specific one —
       <code>reaction-rush</code>, <code>whack-mole</code>, <code>rps</code>, <code>simon</code>,
@@ -85,7 +114,8 @@
       <li>RFID device path: set env <code>RFID_DEVICE</code> (default matches your POC reader).</li>
       <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
-      <li>RFID clue luck on Play: Easy 75% good, Medium 60%, Hard 45% base — bad chance rises after each good scan in a row (PRD, up to 92%).</li>
+      <li><strong>Breakout</strong> — locks + wheel on every 3rd bad code. <strong>Deadline</strong> — timer punishments + 30s time shave on bad codes. <strong>Bounty</strong> — rewards from good scans, no locks.</li>
+      <li>RFID: 45% good / 55% bad base on every tier. Easy +7%, Medium +11%, Hard +14% PRD per good scan (cap 92% bad).</li>
       {% if minigames_enabled %}
         <li>After every <strong>three</strong> good RFID rolls (bad punishment rolls do not count), a minigame is forced.</li>
       {% endif %}

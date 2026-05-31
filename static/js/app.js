@@ -1,10 +1,16 @@
 const banner = document.getElementById("banner");
 const locksEl = document.getElementById("locks");
+const locksSection = document.getElementById("locks-section");
 const btnPlay = document.getElementById("btn-play");
 const overviewView = document.getElementById("overview-view");
 const activeView = document.getElementById("active-view");
+const activeModeLabel = document.getElementById("active-mode-label");
 const activeDifficulty = document.getElementById("active-difficulty");
+const activeSub = document.getElementById("active-sub");
+const phaseBanner = document.getElementById("phase-banner");
+const timerDisplay = document.getElementById("timer-display");
 const wonBadge = document.getElementById("won-badge");
+const bountyWonBadge = document.getElementById("bounty-won-badge");
 const badCodesPill = document.getElementById("bad-codes-pill");
 const badCodesDots = document.getElementById("bad-codes-dots");
 const badCodesCount = document.getElementById("bad-codes-count");
@@ -17,6 +23,35 @@ const lastPunishmentEl = document.getElementById("last-punishment");
 const gmWonBadge = document.getElementById("gm-won-badge");
 const rfidNextBadEl = document.getElementById("rfid-next-bad");
 const punishmentLimitInput = document.getElementById("punishment-limit");
+const punishmentLimitHint = document.getElementById("punishment-limit-hint");
+const meterHint = document.getElementById("meter-hint");
+const rewardsPill = document.getElementById("rewards-pill");
+const rewardsCount = document.getElementById("rewards-count");
+const bountyGoodPill = document.getElementById("bounty-good-pill");
+const bountyGoodCount = document.getElementById("bounty-good-count");
+const collectionPill = document.getElementById("collection-pill");
+const collectionCount = document.getElementById("collection-count");
+const modeBreakoutSettings = document.getElementById("mode-breakout-settings");
+const modeDeadlineSettings = document.getElementById("mode-deadline-settings");
+const modeBountySettings = document.getElementById("mode-bounty-settings");
+const timerMinutesInput = document.getElementById("timer-minutes");
+const rfidsPerPunishmentInput = document.getElementById("rfids-per-punishment");
+const goodCodesPerRewardInput = document.getElementById("good-codes-per-reward");
+const rewardsToWinInput = document.getElementById("rewards-to-win");
+const finalCountdownEnabledInput = document.getElementById("final-countdown-enabled");
+const finalCountdownStartAfterInput = document.getElementById("final-countdown-start-after");
+const gmControls = document.getElementById("gm-controls");
+const btnGrantMercy = document.getElementById("btn-grant-mercy");
+const gmStatusLine = document.getElementById("gm-status-line");
+const wheelModal = document.getElementById("wheel-modal");
+const wheelSpinStage = document.getElementById("wheel-spin-stage");
+const wheelResultStage = document.getElementById("wheel-result-stage");
+const wheelSpinner = document.getElementById("wheel-spinner");
+const wheelPunishmentLabel = document.getElementById("wheel-punishment-label");
+const wheelPunishmentText = document.getElementById("wheel-punishment-text");
+const wheelCountdownNum = document.getElementById("wheel-countdown-num");
+const wheelCountdownHint = document.getElementById("wheel-countdown-hint");
+const wheelResultKicker = document.getElementById("wheel-result-kicker");
 
 const lockInputs = {
   digit3: document.getElementById("lock-digit3"),
@@ -30,8 +65,95 @@ const availLabels = {
 };
 const gmPreviewEl = document.getElementById("gm-preview");
 
+const MODE_LABELS = {
+  breakout: "Breakout",
+  deadline: "Deadline",
+  bounty: "Bounty",
+};
+
 let setupData = null;
 let previewTimer = null;
+let timerTick = null;
+let timerEndsAtMs = null;
+let timerShrinkNote = "";
+let timerCycle = 1;
+
+const WHEEL_SPIN_MS = 4000;
+let wheelModalOpen = false;
+let wheelSpinTimer = null;
+
+function hideWheelModal() {
+  wheelModalOpen = false;
+  if (wheelModal) wheelModal.hidden = true;
+  if (wheelSpinTimer) {
+    window.clearTimeout(wheelSpinTimer);
+    wheelSpinTimer = null;
+  }
+}
+
+function updateWheelCountdown(snap) {
+  if (!wheelModalOpen || !snap) return;
+  const sec = snap.punishment_timer_seconds_remaining;
+  if (sec == null) return;
+  if (wheelCountdownNum) {
+    wheelCountdownNum.textContent = String(Math.max(0, sec));
+    wheelCountdownNum.classList.toggle("urgent", sec <= 10);
+  }
+  const kind = snap.punishment_timer_kind;
+  if (wheelCountdownHint) {
+    if (kind === "complete") {
+      wheelCountdownHint.textContent = "Complete your punishment before time runs out!";
+    } else {
+      wheelCountdownHint.textContent = "Scan your trump skip badge before time runs out!";
+    }
+  }
+  if (wheelResultKicker) {
+    wheelResultKicker.textContent = kind === "complete" ? "Do your penance" : "Skip window";
+  }
+}
+
+function showWheelModal(msg) {
+  if (!wheelModal) return;
+  wheelModalOpen = true;
+  wheelModal.hidden = false;
+  if (wheelSpinStage) wheelSpinStage.hidden = false;
+  if (wheelResultStage) wheelResultStage.hidden = true;
+  if (wheelSpinner) {
+    wheelSpinner.classList.remove("spinning");
+    void wheelSpinner.offsetWidth;
+    wheelSpinner.classList.add("spinning");
+  }
+  if (wheelSpinTimer) window.clearTimeout(wheelSpinTimer);
+  wheelSpinTimer = window.setTimeout(() => {
+    wheelSpinTimer = null;
+    if (wheelSpinStage) wheelSpinStage.hidden = true;
+    if (wheelResultStage) wheelResultStage.hidden = false;
+    const p = msg.punishment || {};
+    if (wheelPunishmentLabel) wheelPunishmentLabel.textContent = p.label || "Punishment";
+    if (wheelPunishmentText) wheelPunishmentText.textContent = p.message || "";
+    if (msg.snapshot) updateWheelCountdown(msg.snapshot);
+  }, WHEEL_SPIN_MS);
+}
+
+function syncWheelModalFromSnapshot(snap) {
+  if (!snap || snap.punishment_resolution === "none" || !snap.punishment_resolution) {
+    if (wheelModalOpen) hideWheelModal();
+    return;
+  }
+  if (!wheelModalOpen) {
+    wheelModalOpen = true;
+    if (wheelModal) wheelModal.hidden = false;
+    if (wheelSpinStage) wheelSpinStage.hidden = true;
+    if (wheelResultStage) wheelResultStage.hidden = false;
+    if (wheelPunishmentLabel) {
+      wheelPunishmentLabel.textContent = snap.pending_punishment_label || "Punishment";
+    }
+    if (wheelPunishmentText) {
+      wheelPunishmentText.textContent = snap.pending_punishment_message || "";
+    }
+  }
+  updateWheelCountdown(snap);
+}
 
 function lockPayload(counts) {
   return {
@@ -39,6 +161,98 @@ function lockPayload(counts) {
     letter5: counts.letter5,
     digit4: counts.digit4,
   };
+}
+
+function gmName(snap) {
+  return (snap && snap.gamemaster_name) || "Gamemaster";
+}
+
+function updateFinalCountdownInputs() {
+  const on = !!(finalCountdownEnabledInput && finalCountdownEnabledInput.checked);
+  if (finalCountdownStartAfterInput) finalCountdownStartAfterInput.disabled = !on;
+}
+
+function selectedGameMode() {
+  const el = document.querySelector('input[name="game_mode"]:checked');
+  return el ? el.value : "breakout";
+}
+
+function selectedBountyTheme() {
+  const el = document.querySelector('input[name="bounty_theme"]:checked');
+  return el ? el.value : "breakout";
+}
+
+function updateModePanels() {
+  const mode = selectedGameMode();
+  if (modeBreakoutSettings) modeBreakoutSettings.hidden = mode !== "breakout";
+  if (modeDeadlineSettings) modeDeadlineSettings.hidden = mode !== "deadline";
+  if (modeBountySettings) modeBountySettings.hidden = mode !== "bounty";
+  if (punishmentLimitHint) {
+    if (mode === "bounty") {
+      punishmentLimitHint.textContent =
+        "Only used with Breakout-style bad codes — how many wheel punishments before the Gamemaster wins?";
+    } else if (mode === "deadline") {
+      punishmentLimitHint.textContent =
+        "How many timer punishments before the Gamemaster wins?";
+    } else {
+      punishmentLimitHint.textContent =
+        "How many wheel punishments before the Gamemaster wins and the room fails to escape?";
+    }
+  }
+  if (mode === "breakout") scheduleLockPreview();
+  updateFinalCountdownInputs();
+}
+
+function selectedGameMode() {
+
+function stopTimerTick() {
+  if (timerTick) window.clearInterval(timerTick);
+  timerTick = null;
+  timerEndsAtMs = null;
+}
+
+function formatTimer(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
+}
+
+function syncTimerFromSnapshot(snap) {
+  if (!timerDisplay) return;
+  if (!snap || snap.game_mode !== "deadline" || snap.phase !== "playing") {
+    timerDisplay.hidden = true;
+    stopTimerTick();
+    return;
+  }
+  const remaining = Number(snap.timer_seconds_remaining);
+  if (Number.isFinite(remaining)) {
+    timerEndsAtMs = Date.now() + remaining * 1000;
+  } else if (snap.timer_ends_at_iso) {
+    timerEndsAtMs = new Date(snap.timer_ends_at_iso).getTime();
+  } else {
+    timerDisplay.hidden = true;
+    stopTimerTick();
+    return;
+  }
+  timerDisplay.hidden = false;
+  timerDisplay.classList.toggle("timer-urgent", remaining <= 60);
+  timerCycle = Number(snap.deadline_cycle) || 1;
+  timerShrinkNote =
+    snap.final_countdown_enabled && timerCycle > (Number(snap.final_countdown_start_after) || 3)
+      ? " · Final Countdown active"
+      : "";
+  if (!timerTick) {
+    timerTick = window.setInterval(renderTimerText, 1000);
+  }
+  renderTimerText();
+}
+
+function renderTimerText() {
+  if (!timerDisplay || timerEndsAtMs == null) return;
+  const sec = Math.max(0, Math.floor((timerEndsAtMs - Date.now()) / 1000));
+  timerDisplay.textContent = `Round ${timerCycle} · Time left: ${formatTimer(sec)}${timerShrinkNote}`;
+  timerDisplay.classList.toggle("timer-urgent", sec <= 60);
 }
 
 function renderGmPreview(programming, { loading = false, error = "" } = {}) {
@@ -70,6 +284,7 @@ function renderGmPreview(programming, { loading = false, error = "" } = {}) {
 }
 
 function scheduleLockPreview() {
+  if (selectedGameMode() !== "breakout") return;
   if (previewTimer) window.clearTimeout(previewTimer);
   previewTimer = window.setTimeout(() => {
     previewTimer = null;
@@ -79,6 +294,7 @@ function scheduleLockPreview() {
 
 async function refreshLockPreview() {
   if (!gmPreviewEl || (overviewView && overviewView.hidden)) return;
+  if (selectedGameMode() !== "breakout") return;
   const locks = selectedLockCounts();
   if (locks.digit3 + locks.letter5 + locks.digit4 < 1) {
     renderGmPreview([]);
@@ -113,6 +329,12 @@ function selectedLockCounts() {
   };
 }
 
+function clampInput(input, min, max, fallback) {
+  const n = Math.max(min, Math.min(max, parseInt(input?.value || String(fallback), 10) || fallback));
+  if (input) input.value = String(n);
+  return n;
+}
+
 function applySetup(data, { resetValues = false } = {}) {
   setupData = data;
   const available = data.available || {};
@@ -135,17 +357,28 @@ function applySetup(data, { resetValues = false } = {}) {
       input.disabled = max === 0;
     }
     if (label) {
-      if (max === 0) {
-        label.textContent = "none available";
-      } else if (max === 1) {
-        label.textContent = "max 1";
-      } else {
-        label.textContent = `max ${max}`;
-      }
+      if (max === 0) label.textContent = "none available";
+      else if (max === 1) label.textContent = "max 1";
+      else label.textContent = `max ${max}`;
     }
   }
   if (punishmentLimitInput && data.default_punishment_limit != null) {
     punishmentLimitInput.value = String(data.default_punishment_limit);
+  }
+  if (timerMinutesInput && data.default_timer_minutes != null) {
+    timerMinutesInput.value = String(data.default_timer_minutes);
+  }
+  if (rfidsPerPunishmentInput && data.default_rfids_per_punishment != null) {
+    rfidsPerPunishmentInput.value = String(data.default_rfids_per_punishment);
+  }
+  if (goodCodesPerRewardInput && data.default_good_codes_per_reward != null) {
+    goodCodesPerRewardInput.value = String(data.default_good_codes_per_reward);
+  }
+  if (rewardsToWinInput && data.default_rewards_to_win != null) {
+    rewardsToWinInput.value = String(data.default_rewards_to_win);
+  }
+  if (finalCountdownStartAfterInput && data.default_final_countdown_start_after != null) {
+    finalCountdownStartAfterInput.value = String(data.default_final_countdown_start_after);
   }
 }
 
@@ -192,6 +425,17 @@ function lockStateLabel(lock) {
   return "LOCKED";
 }
 
+function badCodesHint(snap) {
+  const effect = snap && snap.bad_code_effect;
+  if (effect === "time_penalty") {
+    return "Every 3rd bad code shaves 30 seconds off the clock.";
+  }
+  if (effect === "lose_progress") {
+    return "Every 3rd bad code steals one step toward your next reward.";
+  }
+  return "Every 3rd bad RFID or wrong lock try spins the wheel.";
+}
+
 function renderBadCodesMeter(snap) {
   if (!badCodesPill) return;
   const goal = Math.max(1, Number(snap && snap.bad_codes_goal) || 3);
@@ -200,11 +444,11 @@ function renderBadCodesMeter(snap) {
   if (badCodesDots) {
     const dots = [];
     for (let i = 0; i < goal; i += 1) {
-      const lit = i < current ? "lit" : "";
-      dots.push(`<span class="strike-dot ${lit}"></span>`);
+      dots.push(`<span class="strike-dot ${i < current ? "lit" : ""}"></span>`);
     }
     badCodesDots.innerHTML = dots.join("");
   }
+  badCodesPill.title = badCodesHint(snap);
   badCodesPill.classList.toggle("ready", current > 0 && current >= goal - 1);
 }
 
@@ -220,12 +464,12 @@ function renderPunishmentsMeter(snap) {
     return;
   }
   const limit = Math.max(1, Number(snap.punishments_limit) || 3);
-  const current = Math.max(0, Math.min(limit, Number(snap && snap.punishments_received) || 0));
+  const current = Math.max(0, Math.min(limit, Number(snap.punishments_received) || 0));
   if (punishmentsCount) punishmentsCount.textContent = `${current} / ${limit}`;
   punishmentsPill.classList.toggle("ready", current > 0 && current >= limit - 1);
 
   if (lastPunishmentEl) {
-    const last = snap && snap.last_punishment ? String(snap.last_punishment) : "";
+    const last = snap.last_punishment ? String(snap.last_punishment) : "";
     if (last) {
       lastPunishmentEl.hidden = false;
       lastPunishmentEl.textContent = `Last punishment: ${last}`;
@@ -238,50 +482,185 @@ function renderPunishmentsMeter(snap) {
 
 function renderClueMinigameMeter(snap) {
   if (!clueMinigamePill) return;
-  const goal = Math.max(1, Number(snap && snap.good_rfid_goal) || 3);
-  const progress = Math.max(0, Math.min(goal, Number(snap && snap.good_rfid_progress) || 0));
+  const mode = snap && snap.game_mode;
+  const show = mode === "breakout" || mode === "bounty";
+  clueMinigamePill.hidden = !show;
+  if (!show) return;
+  const goal = Math.max(1, Number(snap.good_rfid_goal) || 3);
+  const progress = Math.max(0, Math.min(goal, Number(snap.good_rfid_progress) || 0));
   if (clueCount) clueCount.textContent = `${progress} / ${goal}`;
   if (clueDots) {
     const dots = [];
     for (let i = 0; i < goal; i += 1) {
-      const lit = i < progress ? "lit clue-dot-lit" : "";
-      dots.push(`<span class="strike-dot ${lit}"></span>`);
+      dots.push(`<span class="strike-dot ${i < progress ? "lit clue-dot-lit" : ""}"></span>`);
     }
     clueDots.innerHTML = dots.join("");
   }
   clueMinigamePill.classList.toggle("ready", progress >= goal - 1 && goal > 0);
 }
 
+function renderBountyMeters(snap) {
+  const mode = snap && snap.game_mode;
+  const isBounty = mode === "bounty";
+  if (rewardsPill) rewardsPill.hidden = !isBounty;
+  if (bountyGoodPill) bountyGoodPill.hidden = !isBounty;
+  if (!isBounty) return;
+  const toWin = Math.max(1, Number(snap.rewards_to_win) || 5);
+  const earned = Math.max(0, Number(snap.rewards_earned) || 0);
+  const perReward = Math.max(1, Number(snap.good_codes_per_reward) || 5);
+  const progress = Math.max(0, Number(snap.good_codes_progress) || 0);
+  if (rewardsCount) rewardsCount.textContent = `${earned} / ${toWin}`;
+  if (bountyGoodCount) bountyGoodCount.textContent = `${progress} / ${perReward}`;
+}
+
+function renderCollectionMeter(snap) {
+  const mode = snap && snap.game_mode;
+  const phase = snap && snap.phase;
+  const show = mode === "deadline" && phase === "collection";
+  if (collectionPill) collectionPill.hidden = !show;
+  if (!show) return;
+  const need = Math.max(1, Number(snap.rfids_per_punishment) || 4);
+  const got = Math.max(0, Number(snap.rfids_collected) || 0);
+  if (collectionCount) collectionCount.textContent = `${got} / ${need}`;
+}
+
+function renderGmControls(snap) {
+  if (!gmControls) return;
+  if (!snap || snap.game_over) {
+    gmControls.hidden = true;
+    if (gmStatusLine) gmStatusLine.textContent = "";
+    return;
+  }
+  gmControls.hidden = false;
+  const parts = [];
+  if (snap.mercy_free_scan_pending) {
+    parts.push("Mercy armed — next regular scan is forced good.");
+  } else if (snap.mercy_free_scan_available) {
+    parts.push("Mercy available (once per game).");
+  } else {
+    parts.push("Mercy used.");
+  }
+  if (snap.punishment_resolution === "trump_window") {
+    parts.push("Trump skip window open — scan the skip badge!");
+  } else if (snap.punishment_resolution === "completing") {
+    parts.push("Complete the punishment!");
+  }
+  if (snap.wildcard_free_good_used) parts.push("Good wildcard badge spent.");
+  if (snap.wildcard_trump_used) parts.push("Trump wildcard badge spent.");
+  if (btnGrantMercy) {
+    btnGrantMercy.disabled = !snap.mercy_free_scan_available || !!snap.mercy_free_scan_pending;
+  }
+  if (gmStatusLine) gmStatusLine.textContent = parts.join(" ");
+}
+
+function renderPhaseBanner(snap) {
+  if (!phaseBanner) return;
+  if (!snap || snap.game_mode !== "deadline") {
+    phaseBanner.hidden = true;
+    phaseBanner.textContent = "";
+    return;
+  }
+  const phase = snap.phase || "playing";
+  if (phase === "punishment") {
+    phaseBanner.hidden = false;
+    if (snap.punishment_resolution === "trump_window") {
+      phaseBanner.textContent =
+        "Wheel landed — scan your trump skip badge before the timer runs out.";
+    } else if (snap.punishment_resolution === "completing") {
+      phaseBanner.textContent = "Complete your punishment before time runs out!";
+    } else {
+      phaseBanner.textContent =
+        "Finish your punishment, then scan your earned RFIDs.";
+    }
+  } else if (phase === "collection") {
+    phaseBanner.hidden = false;
+    phaseBanner.textContent = "Collection phase — scan every RFID the Gamemaster handed out.";
+  } else {
+    phaseBanner.hidden = true;
+    phaseBanner.textContent = "";
+  }
+}
+
+function renderMeterHint(snap) {
+  if (!meterHint) return;
+  if (!snap) {
+    meterHint.textContent = "";
+    return;
+  }
+  const mode = snap.game_mode || "breakout";
+  if (mode === "deadline") {
+    meterHint.textContent =
+      "Deadline — survive each countdown. Timer punishments spin the wheel; bad codes shave 30 seconds instead.";
+  } else if (mode === "bounty") {
+    meterHint.textContent =
+      `Bounty — earn ${snap.good_codes_per_reward || 5} good codes per reward, ` +
+      `${snap.rewards_to_win || 5} rewards to win. ${badCodesHint(snap)}`;
+  } else {
+    meterHint.textContent =
+      "Breakout — bad codes never reset; every 3rd bad code spins the wheel (no duplicate punishments).";
+  }
+}
+
 function setActiveView(snap) {
-  const active = !!(snap && snap.locks);
+  const active = !!(snap && snap.started_at_iso);
   if (overviewView) overviewView.hidden = active;
   if (activeView) activeView.hidden = !active;
   if (window.NavSetGameActive) window.NavSetGameActive(active);
   if (!active) {
     if (locksEl) locksEl.innerHTML = "";
     if (wonBadge) wonBadge.hidden = true;
+    if (bountyWonBadge) bountyWonBadge.hidden = true;
     if (gmWonBadge) gmWonBadge.hidden = true;
     if (rfidNextBadEl) {
       rfidNextBadEl.hidden = true;
       rfidNextBadEl.textContent = "";
     }
+    stopTimerTick();
     renderBadCodesMeter(null);
     renderPunishmentsMeter(null);
     renderClueMinigameMeter(null);
-    scheduleLockPreview();
+    renderBountyMeters(null);
+    renderCollectionMeter(null);
+    renderPhaseBanner(null);
+    renderMeterHint(null);
+    renderGmControls(null);
+    hideWheelModal();
+    updateModePanels();
     return;
   }
+
+  const mode = snap.game_mode || "breakout";
+  if (activeModeLabel) activeModeLabel.textContent = MODE_LABELS[mode] || "Game";
+  if (activeSub) {
+    if (mode === "deadline") {
+      activeSub.textContent = `Beat the clock — punishments come when time runs out. Outlast ${gmName(snap)}.`;
+    } else if (mode === "bounty") {
+      activeSub.textContent = `Stack good scans into rewards before ${gmName(snap)} breaks your streak.`;
+    } else {
+      activeSub.textContent = `Scan clues, crack the locks, escape before ${gmName(snap)} wins.`;
+    }
+  }
+  if (locksSection) locksSection.hidden = mode !== "breakout";
+
   renderBadCodesMeter(snap);
   renderPunishmentsMeter(snap);
   renderClueMinigameMeter(snap);
+  renderBountyMeters(snap);
+  renderCollectionMeter(snap);
+  renderPhaseBanner(snap);
+  renderMeterHint(snap);
+  renderGmControls(snap);
+  syncWheelModalFromSnapshot(snap);
+  syncTimerFromSnapshot(snap);
+
   if (activeDifficulty) {
     const d = (snap.difficulty || "medium").toString();
-    const title = d[0].toUpperCase() + d.slice(1);
-    activeDifficulty.textContent = `— ${title}`;
+    activeDifficulty.textContent = `— ${d[0].toUpperCase() + d.slice(1)}`;
   }
   if (rfidNextBadEl) {
     const pct = snap.rfid_bad_chance_percent != null ? snap.rfid_bad_chance_percent : null;
-    if (pct != null && !snap.game_over) {
+    const hide = pct == null || snap.game_over || snap.phase === "collection";
+    if (!hide) {
       rfidNextBadEl.hidden = false;
       rfidNextBadEl.textContent = `Next badge scan: ${pct}% bad (rises after each good scan).`;
     } else {
@@ -290,26 +669,32 @@ function setActiveView(snap) {
     }
   }
   if (wonBadge) {
-    const escaped = snap.won === true || snap.won === "true";
+    const escaped = mode === "breakout" && (snap.won === true || snap.won === "true");
     wonBadge.hidden = !escaped;
+  }
+  if (bountyWonBadge) {
+    const won = mode === "bounty" && (snap.won === true || snap.won === "true");
+    bountyWonBadge.hidden = !won;
   }
   if (gmWonBadge) {
     const gmWon = snap.gm_won === true || snap.gm_won === "true";
     gmWonBadge.hidden = !gmWon;
   }
-  locksEl.innerHTML = "";
-  for (const lock of snap.locks) {
-    const card = document.createElement("div");
-    const classes = ["lock-card"];
-    if (lock.solved) classes.push("solved");
-    else if (lock.fully_revealed) classes.push("revealed");
-    card.className = classes.join(" ");
-    card.innerHTML = `
-      <div class="lock-kind">${kindLabel(lock.kind)}</div>
-      <div class="lock-state">${lockStateLabel(lock)}</div>
-      <div class="lock-clues">${formatClues(lock)}</div>
-    `;
-    locksEl.appendChild(card);
+  if (locksEl) {
+    locksEl.innerHTML = "";
+    for (const lock of snap.locks || []) {
+      const card = document.createElement("div");
+      const classes = ["lock-card"];
+      if (lock.solved) classes.push("solved");
+      else if (lock.fully_revealed) classes.push("revealed");
+      card.className = classes.join(" ");
+      card.innerHTML = `
+        <div class="lock-kind">${kindLabel(lock.kind)}</div>
+        <div class="lock-state">${lockStateLabel(lock)}</div>
+        <div class="lock-clues">${formatClues(lock)}</div>
+      `;
+      locksEl.appendChild(card);
+    }
   }
 }
 
@@ -324,6 +709,7 @@ function setBanner(text, tone) {
 function bannerToneForResult(r) {
   const inter = r.interaction || "lock";
   if (inter === "rfid_exhausted") return "";
+  if (inter === "rfid_collect" || inter === "rfid_good") return "ok";
   return r.ok ? "ok" : "bad";
 }
 
@@ -346,22 +732,66 @@ for (const input of Object.values(lockInputs)) {
   input.addEventListener("input", scheduleLockPreview);
   input.addEventListener("change", scheduleLockPreview);
 }
+
+document.querySelectorAll('input[name="game_mode"]').forEach((el) => {
+  el.addEventListener("change", updateModePanels);
+});
+if (finalCountdownEnabledInput) {
+  finalCountdownEnabledInput.addEventListener("change", updateFinalCountdownInputs);
+}
+
+if (btnGrantMercy) {
+  btnGrantMercy.addEventListener("click", async () => {
+    btnGrantMercy.disabled = true;
+    try {
+      const data = await postJson("/api/game/grant-mercy", {});
+      setBanner(`Mercy granted — next scan is forced good.`, "ok");
+      setActiveView(data.snapshot);
+    } catch (e) {
+      setBanner(String(e.message || e), "bad");
+    } finally {
+      btnGrantMercy.disabled = false;
+    }
+  });
+}
+
 if (btnPlay) {
   btnPlay.addEventListener("click", async () => {
+    const mode = selectedGameMode();
     const locks = selectedLockCounts();
-    if (locks.digit3 + locks.letter5 + locks.digit4 < 1) {
-      setBanner("Pick at least one lock to start.", "bad");
+    if (mode === "breakout" && locks.digit3 + locks.letter5 + locks.digit4 < 1) {
+      setBanner("Pick at least one lock to start Breakout.", "bad");
       return;
     }
     btnPlay.disabled = true;
     try {
-      const data = await postJson("/api/game/start", {
+      const payload = {
+        game_mode: mode,
         difficulty: selectedDifficulty(),
+        punishment_limit: selectedPunishmentLimit(),
         digit3: locks.digit3,
         letter5: locks.letter5,
         digit4: locks.digit4,
-        punishment_limit: selectedPunishmentLimit(),
-      });
+      };
+      if (mode === "deadline") {
+        payload.timer_minutes = clampInput(timerMinutesInput, 1, 180, 10);
+        payload.rfids_per_punishment = clampInput(rfidsPerPunishmentInput, 1, 99, 4);
+        payload.final_countdown_enabled = !!(finalCountdownEnabledInput && finalCountdownEnabledInput.checked);
+        if (payload.final_countdown_enabled) {
+          payload.final_countdown_start_after = clampInput(
+            finalCountdownStartAfterInput,
+            1,
+            99,
+            3
+          );
+        }
+      }
+      if (mode === "bounty") {
+        payload.good_codes_per_reward = clampInput(goodCodesPerRewardInput, 1, 99, 5);
+        payload.rewards_to_win = clampInput(rewardsToWinInput, 1, 99, 5);
+        payload.bounty_theme = selectedBountyTheme();
+      }
+      const data = await postJson("/api/game/start", payload);
       setBanner("Game started.", "ok");
       setActiveView(data.snapshot);
     } catch (e) {
@@ -377,33 +807,76 @@ function applyWsMessage(msg) {
     setActiveView(msg.snapshot);
     return;
   }
-  if (msg.type === "game_started" || msg.type === "code_result") {
+  if (
+    msg.type === "game_started" ||
+    msg.type === "code_result" ||
+    msg.type === "timer_expired" ||
+    msg.type === "timer_restarted" ||
+    msg.type === "punishment_complete" ||
+    msg.type === "mercy_granted" ||
+    msg.type === "trump_used" ||
+    msg.type === "punishment_wheel" ||
+    msg.type === "punishment_phase" ||
+    msg.type === "punishment_resolved"
+  ) {
     if (msg.snapshot) setActiveView(msg.snapshot);
+    if (msg.type === "punishment_wheel") {
+      showWheelModal(msg);
+      setBanner("The wheel of punishments has spoken!", "bad");
+      return;
+    }
     if (msg.type === "code_result" && msg.result) {
       if (msg.snapshot && (msg.snapshot.gm_won === true || msg.snapshot.gm_won === "true")) {
-        setBanner("The Gamemaster wins — you failed to escape!", "bad");
+        setBanner(
+          `${gmName(msg.snapshot)} wins — you failed!`,
+          "bad"
+        );
+      } else if (msg.result.won) {
+        setBanner(msg.result.message, "ok");
       } else {
         setBanner(msg.result.message, bannerToneForResult(msg.result));
       }
     }
+    if (msg.type === "timer_expired") {
+      setBanner("Time's up — the punishment wheel spins!", "bad");
+    }
+    if (msg.type === "timer_restarted") {
+      setBanner("All RFIDs scanned — the timer restarts!", "ok");
+    }
+    if (msg.type === "mercy_granted") {
+      setBanner("Mercy granted — next regular RFID scan is forced good.", "ok");
+    }
+    if (msg.type === "trump_used") {
+      hideWheelModal();
+      setBanner(msg.message || "Trump card — punishment skipped!", "ok");
+      return;
+    }
+    if (msg.type === "punishment_phase") {
+      if (msg.snapshot) updateWheelCountdown(msg.snapshot);
+      setBanner("Trump window closed — complete your punishment!", "bad");
+      return;
+    }
     return;
   }
   if (msg.type === "game_stopped") {
+    hideWheelModal();
     setActiveView(null);
     setBanner("Game ended.", "");
     return;
   }
   if (msg.type === "forced_minigame" && msg.url) {
     if (msg.gm_won) {
-      setBanner(msg.game_over_message || "The Gamemaster wins — you failed to escape!", "bad");
+      hideWheelModal();
+      setBanner(msg.game_over_message || "The Gamemaster wins!", "bad");
       return;
     }
+    if (msg.reason === "punishment_wheel") hideWheelModal();
     const scheduled = msg.reason === "three_clues" || msg.reason === "good_scan_bonus";
     const tone = scheduled ? "ok" : "bad";
     const text =
       msg.message ||
       (scheduled
-        ? "Three good RFID codes — time for a minigame."
+        ? "Three good RFID codes — the Gamemaster opens a minigame."
         : "The Gamemaster locks the room — your penance is a minigame.");
     setBanner(text, tone);
     window.setTimeout(() => {
@@ -412,8 +885,10 @@ function applyWsMessage(msg) {
     return;
   }
   if (msg.type === "punishment_text") {
+    if (msg.reason === "punishment_wheel") hideWheelModal();
+    if (msg.snapshot) setActiveView(msg.snapshot);
     const text = msg.gm_won
-      ? msg.game_over_message || "The Gamemaster wins — you failed to escape!"
+      ? msg.game_over_message || "The Gamemaster wins!"
       : "Punishment: " + (msg.message || "The Gamemaster claims this one.");
     setBanner(text, "bad");
     return;
@@ -446,6 +921,8 @@ function connectWs() {
 
 (async () => {
   await loadSetup();
+  updateModePanels();
+  updateFinalCountdownInputs();
   try {
     const res = await fetch("/api/game/status");
     const data = await res.json();

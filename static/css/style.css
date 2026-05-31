@@ -137,6 +137,11 @@ h2 {
   letter-spacing: 0.05em;
 }
 
+.difficulty-hint {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
 .rfid-next-bad {
   margin: 6px 0 0;
   font-size: 0.9rem;
@@ -700,4 +705,211 @@ input[type="text"] {
 
 code {
   color: #cfe1ff;
+}
+
+.game-mode-picks {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 18px 0;
+}
+
+.mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mode-card:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mode-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timer-display {
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin: 8px 0 0;
+}
+
+.timer-display.timer-urgent {
+  color: var(--danger);
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+@keyframes timer-pulse {
+  50% {
+    opacity: 0.72;
+  }
+}
+
+.phase-banner {
+  font-size: 1.05rem;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  background: rgba(124, 92, 255, 0.08);
+}
+
+.strike-pill.collection-pill {
+  border-color: rgba(124, 92, 255, 0.45);
+}
+
+.strike-pill.reward-pill {
+  border-color: rgba(92, 255, 157, 0.45);
+}
+
+.text-input {
+  width: 100%;
+  max-width: 420px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  background: #0b111a;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.gm-controls {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.gm-status-line {
+  font-size: 0.95rem;
+}
+
+.final-countdown-settings {
+  margin-top: 12px;
+  border: none;
+  padding: 0;
+}
+
+.wheel-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 14, 0.88);
+  backdrop-filter: blur(6px);
+  padding: 20px;
+}
+
+.wheel-modal[hidden] {
+  display: none !important;
+}
+
+.wheel-modal-card {
+  width: min(520px, 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 92, 122, 0.45);
+  background: linear-gradient(160deg, #141c28 0%, #0b111a 100%);
+  padding: 28px 24px 32px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.wheel-spinner-wrap {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin: 0 auto 16px;
+}
+
+.wheel-spinner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.12);
+  background: conic-gradient(
+    #ff5c7a 0deg 45deg,
+    #7c5cff 45deg 90deg,
+    #3dd6c6 90deg 135deg,
+    #ffb347 135deg 180deg,
+    #ff5c7a 180deg 225deg,
+    #7c5cff 225deg 270deg,
+    #3dd6c6 270deg 315deg,
+    #ffb347 315deg 360deg
+  );
+  transition: transform 4s cubic-bezier(0.15, 0.85, 0.25, 1);
+}
+
+.wheel-spinner.spinning {
+  transform: rotate(1800deg);
+}
+
+.wheel-spinner-pointer {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-bottom: 18px solid #ff5c7a;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.wheel-modal-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.wheel-punishment-label {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+  color: #ffd7df;
+}
+
+.wheel-punishment-text {
+  margin: 0 0 20px;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.wheel-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.wheel-countdown-num {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.wheel-countdown-num.urgent {
+  color: var(--danger);
+}
+
+.wheel-countdown-unit {
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+.wheel-countdown-hint {
+  margin: 0;
+  font-size: 0.95rem;
 }

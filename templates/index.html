@@ -6,73 +6,128 @@
   <section id="overview-view" class="panel kiosk-hero">
     <h1>Escape Room</h1>
     <p class="lede">
-      Choose how many locks of each type to use (from the codes saved in Settings), then pick
-      <strong>RFID clue luck</strong> — the percent chance a badge scan reveals a clue.
-      Shorter digit strings try numeric locks; five letters try a letter lock. Three
-      <strong>bad codes</strong> in a row spins the punishment wheel.
-      {% if minigames_enabled %}
-        Every three good RFID rolls can force a minigame.
-      {% endif %}
-      The Gamemaster previews the combinations below, programs the physical locks, then starts the game.
+      Pick a <strong>game mode</strong>, tune the settings, then start. Every mode uses the same RFID luck
+      (45% good / 55% bad base) and <strong>PRD tier</strong> for how fast bad odds climb after good scans.
     </p>
 
-    <fieldset class="lock-picks">
-      <legend>Locks in this game</legend>
-      <p class="muted lock-picks-hint">How many of each lock type do you want to play with? Pick at least one lock total.</p>
-      <div class="lock-pick-row">
-        <label for="lock-digit3">3-digit locks</label>
-        <input id="lock-digit3" type="number" min="0" max="{{ avail.digit3 }}" value="{{ [defs.digit3, avail.digit3]|min }}"{% if avail.digit3 == 0 %} disabled{% endif %} />
-        <span id="avail-digit3" class="muted">{% if avail.digit3 == 0 %}none available{% elif avail.digit3 == 1 %}max 1{% else %}max {{ avail.digit3 }}{% endif %}</span>
-      </div>
-      <div class="lock-pick-row">
-        <label for="lock-letter5">5-letter locks</label>
-        <input id="lock-letter5" type="number" min="0" max="{{ avail.letter5 }}" value="{{ [defs.letter5, avail.letter5]|min }}"{% if avail.letter5 == 0 %} disabled{% endif %} />
-        <span id="avail-letter5" class="muted">{% if avail.letter5 == 0 %}none available{% elif avail.letter5 == 1 %}max 1{% else %}max {{ avail.letter5 }}{% endif %}</span>
-      </div>
-      <div class="lock-pick-row">
-        <label for="lock-digit4">4-digit lockboxes</label>
-        <input id="lock-digit4" type="number" min="0" max="{{ avail.digit4 }}" value="{{ [defs.digit4, avail.digit4]|min }}"{% if avail.digit4 == 0 %} disabled{% endif %} />
-        <span id="avail-digit4" class="muted">{% if avail.digit4 == 0 %}none available{% elif avail.digit4 == 1 %}max 1{% else %}max {{ avail.digit4 }}{% endif %}</span>
-      </div>
+    <fieldset class="game-mode-picks">
+      <legend>Game mode</legend>
+      <label class="mode-card">
+        <input type="radio" name="game_mode" value="breakout" checked />
+        <span class="mode-card-body">
+          <strong>Breakout</strong>
+          <span class="muted">Classic escape — crack the locks before the Gamemaster's punishments run out.</span>
+        </span>
+      </label>
+      <label class="mode-card">
+        <input type="radio" name="game_mode" value="deadline" />
+        <span class="mode-card-body">
+          <strong>Deadline</strong>
+          <span class="muted">Race the clock — when time runs out the wheel spins. Earn RFIDs, scan them in, repeat.</span>
+        </span>
+      </label>
+      <label class="mode-card">
+        <input type="radio" name="game_mode" value="bounty" />
+        <span class="mode-card-body">
+          <strong>Bounty</strong>
+          <span class="muted">No locks — stack good codes into rewards until you hit your goal.</span>
+        </span>
+      </label>
     </fieldset>
 
-    <section class="gm-preview-panel">
-      <h2>Gamemaster — program these locks</h2>
-      <p class="muted gm-preview-hint">
-        Combinations update when you change lock counts. Set each physical lock to match, then Start Game.
-      </p>
-      <div id="gm-preview" class="gm-programming muted">Pick at least one lock to preview combinations.</div>
-    </section>
+    <div id="mode-breakout-settings">
+      <fieldset class="lock-picks">
+        <legend>Locks in this game</legend>
+        <p class="muted lock-picks-hint">How many of each lock type do you want to play with? Pick at least one lock total.</p>
+        <div class="lock-pick-row">
+          <label for="lock-digit3">3-digit locks</label>
+          <input id="lock-digit3" type="number" min="0" max="{{ avail.digit3 }}" value="{{ [defs.digit3, avail.digit3]|min }}"{% if avail.digit3 == 0 %} disabled{% endif %} />
+          <span id="avail-digit3" class="muted">{% if avail.digit3 == 0 %}none available{% elif avail.digit3 == 1 %}max 1{% else %}max {{ avail.digit3 }}{% endif %}</span>
+        </div>
+        <div class="lock-pick-row">
+          <label for="lock-letter5">5-letter locks</label>
+          <input id="lock-letter5" type="number" min="0" max="{{ avail.letter5 }}" value="{{ [defs.letter5, avail.letter5]|min }}"{% if avail.letter5 == 0 %} disabled{% endif %} />
+          <span id="avail-letter5" class="muted">{% if avail.letter5 == 0 %}none available{% elif avail.letter5 == 1 %}max 1{% else %}max {{ avail.letter5 }}{% endif %}</span>
+        </div>
+        <div class="lock-pick-row">
+          <label for="lock-digit4">4-digit lockboxes</label>
+          <input id="lock-digit4" type="number" min="0" max="{{ avail.digit4 }}" value="{{ [defs.digit4, avail.digit4]|min }}"{% if avail.digit4 == 0 %} disabled{% endif %} />
+          <span id="avail-digit4" class="muted">{% if avail.digit4 == 0 %}none available{% elif avail.digit4 == 1 %}max 1{% else %}max {{ avail.digit4 }}{% endif %}</span>
+        </div>
+      </fieldset>
+
+      <section class="gm-preview-panel">
+        <h2>Gamemaster — program these locks</h2>
+        <p class="muted gm-preview-hint">
+          Combinations update when you change lock counts. Set each physical lock to match, then Start Game.
+        </p>
+        <div id="gm-preview" class="gm-programming muted">Pick at least one lock to preview combinations.</div>
+      </section>
+    </div>
+
+    <div id="mode-deadline-settings" hidden>
+      <fieldset class="deadline-settings">
+        <legend>Deadline settings</legend>
+        <p class="muted">When the timer hits zero, the punishment wheel spins. After the punishment, hand out RFIDs and scan them all before the next countdown.</p>
+        <div class="punishment-limit-row">
+          <label for="timer-minutes">Timer length (minutes)</label>
+          <input id="timer-minutes" type="number" min="1" max="180" value="{{ lock_setup.default_timer_minutes }}" />
+        </div>
+        <div class="punishment-limit-row">
+          <label for="rfids-per-punishment">RFIDs earned after each punishment</label>
+          <input id="rfids-per-punishment" type="number" min="1" max="99" value="{{ lock_setup.default_rfids_per_punishment }}" />
+        </div>
+        <p class="muted rfid-tiers-note">
+          Every 3 bad codes shaves <strong>30 seconds</strong> off the clock instead of spinning the wheel.
+        </p>
+        <fieldset class="final-countdown-settings">
+          <legend>Final Countdown</legend>
+          <label class="mode-card">
+            <input type="checkbox" id="final-countdown-enabled" />
+            <span class="mode-card-body">
+              <strong>Enable Final Countdown</strong>
+              <span class="muted">After a set number of full-length rounds, each new timer is 10% shorter.</span>
+            </span>
+          </label>
+          <div class="punishment-limit-row">
+            <label for="final-countdown-start-after">Full rounds before shrink begins</label>
+            <input id="final-countdown-start-after" type="number" min="1" max="99" value="{{ lock_setup.default_final_countdown_start_after }}" disabled />
+          </div>
+        </fieldset>
+      </fieldset>
+    </div>
+
+    <div id="mode-bounty-settings" hidden>
+      <fieldset class="bounty-settings">
+        <legend>Bounty settings</legend>
+        <p class="muted">Track good RFID rolls toward rewards — no locks in this mode.</p>
+        <div class="punishment-limit-row">
+          <label for="good-codes-per-reward">Good codes per reward</label>
+          <input id="good-codes-per-reward" type="number" min="1" max="99" value="{{ lock_setup.default_good_codes_per_reward }}" />
+        </div>
+        <div class="punishment-limit-row">
+          <label for="rewards-to-win">Rewards to win the game</label>
+          <input id="rewards-to-win" type="number" min="1" max="99" value="{{ lock_setup.default_rewards_to_win }}" />
+        </div>
+        <fieldset class="bounty-theme">
+          <legend>Bad-code style</legend>
+          <label><input type="radio" name="bounty_theme" value="breakout" checked /> Breakout — every 3rd bad code spins the wheel</label>
+          <label><input type="radio" name="bounty_theme" value="deadline" /> Deadline — every 3rd bad code steals one good-code step</label>
+        </fieldset>
+      </fieldset>
+    </div>
 
     <fieldset class="difficulty">
-      <legend>RFID clue luck</legend>
-      <label><input type="radio" name="difficulty" value="easy" /> Easy — 75% good · 25% bad</label>
-      <label><input type="radio" name="difficulty" value="medium" checked /> Medium — 60% good · 40% bad</label>
-      <label><input type="radio" name="difficulty" value="hard" /> Hard — 45% good · 55% bad</label>
-      <table class="rfid-tiers muted">
-        <thead>
-          <tr>
-            <th>Tier</th>
-            <th>Good RFID</th>
-            <th>Base bad RFID</th>
-            <th>PRD step</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>Easy</td><td>75%</td><td>25%</td><td>+7% per good scan</td></tr>
-          <tr><td>Medium</td><td>60%</td><td>40%</td><td>+9% per good scan</td></tr>
-          <tr><td>Hard</td><td>45%</td><td>55%</td><td>+11% per good scan</td></tr>
-        </tbody>
-      </table>
-      <p class="muted rfid-tiers-note">
-        Base bad rates above. After each good scan in a row, bad chance rises (+7% Easy, +9% Medium, +11% Hard) so RFID-heavy runs still pressure the Gamemaster — up to 92% bad.
-        Bad RFID scans do not reset the bad-code counter; only opening a lock does.
-      </p>
+      <legend>PRD tier</legend>
+      <p class="muted difficulty-hint">Every tier uses <strong>45% good / 55% bad</strong> on the first scan. Difficulty only changes how fast bad odds climb after good scans.</p>
+      <label><input type="radio" name="difficulty" value="easy" /> Easy — +7% bad per good scan</label>
+      <label><input type="radio" name="difficulty" value="medium" checked /> Medium — +11% bad per good scan</label>
+      <label><input type="radio" name="difficulty" value="hard" /> Hard — +14% bad per good scan</label>
     </fieldset>
 
-    <fieldset class="punishment-limit">
+    <fieldset class="punishment-limit" id="punishment-limit-fieldset">
       <legend>Gamemaster win condition</legend>
-      <p class="muted punishment-limit-hint">How many wheel punishments before the Gamemaster wins and the room fails to escape?</p>
+      <p class="muted punishment-limit-hint" id="punishment-limit-hint">How many wheel punishments before the Gamemaster wins?</p>
       <div class="punishment-limit-row">
         <label for="punishment-limit">Punishments allowed</label>
         <input id="punishment-limit" type="number" min="1" max="99" value="{{ lock_setup.default_punishment_limit }}" />
@@ -91,18 +146,38 @@
     <div class="active-head">
       <div>
         <h1>
-          Game in progress <span id="active-difficulty" class="muted"></span>
+          <span id="active-mode-label">Game</span>
+          <span id="active-difficulty" class="muted"></span>
           <span id="won-badge" class="won-badge" hidden>ESCAPED</span>
+          <span id="bounty-won-badge" class="won-badge" hidden>YOU WIN</span>
           <span id="gm-won-badge" class="gm-won-badge" hidden>GAME OVER</span>
         </h1>
         <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
+        <p id="phase-banner" class="phase-banner muted" hidden></p>
+        <p id="timer-display" class="timer-display" hidden></p>
         <p id="rfid-next-bad" class="muted rfid-next-bad" hidden></p>
+        <div id="gm-controls" class="gm-controls" hidden>
+          <button id="btn-grant-mercy" type="button" class="ghost">Grant free good scan</button>
+          <span id="gm-status-line" class="muted gm-status-line"></span>
+        </div>
       </div>
       <div class="active-pills">
+        <div id="rewards-pill" class="strike-pill reward-pill" hidden title="Rewards earned toward victory">
+          <span class="strike-label">Rewards</span>
+          <span id="rewards-count" class="strike-count">0 / 5</span>
+        </div>
+        <div id="bounty-good-pill" class="strike-pill clue-pill" hidden title="Good RFID rolls toward the next reward">
+          <span class="strike-label">Toward reward</span>
+          <span id="bounty-good-count" class="strike-count">0 / 5</span>
+        </div>
+        <div id="collection-pill" class="strike-pill collection-pill" hidden title="Scan all earned RFIDs before the timer restarts">
+          <span class="strike-label">RFIDs to scan</span>
+          <span id="collection-count" class="strike-count">0 / 4</span>
+        </div>
         <div
           id="bad-codes-pill"
           class="strike-pill bad-pill"
-          title="Counts consecutive bad RFID punishment rolls and wrong lock combinations. Resets only when you open a lock. At 3/3, the punishment wheel spins."
+          title="Bad RFID punishments and wrong lock tries add up — never resets."
         >
           <span class="strike-label">Bad codes</span>
           <span id="bad-codes-dots" class="strike-dots"></span>
@@ -129,24 +204,42 @@
         {% endif %}
       </div>
     </div>
-    <p class="muted meter-hint">
-      <strong>Bad codes</strong> — wrong lock tries <em>or</em> bad RFID punishments in a row; only opening a lock resets the streak; at 3/3 the wheel spins (no duplicate punishments).
-      <strong>Punishments</strong> — each wheel spin counts; hit the limit and the Gamemaster wins.
-      {% if minigames_enabled %}
-        <strong>Good codes</strong> — each good RFID roll advances 1 (bad rolls do not); at 3/3 a minigame opens next.
-      {% endif %}
-    </p>
+    <p class="muted meter-hint" id="meter-hint"></p>
 
     <p id="last-punishment" class="last-punishment muted" hidden></p>
 
     <div id="banner" class="banner" role="status" aria-live="polite"></div>
 
-    <section class="progress">
+    <section class="progress" id="locks-section">
       <h2>Locks</h2>
       <div id="locks" class="locks"></div>
     </section>
   </section>
 
+  <div id="wheel-modal" class="wheel-modal" hidden aria-modal="true" role="dialog">
+    <div class="wheel-modal-card">
+      <div id="wheel-spin-stage">
+        <div class="wheel-spinner-wrap">
+          <div id="wheel-spinner" class="wheel-spinner"></div>
+          <div class="wheel-spinner-pointer" aria-hidden="true"></div>
+        </div>
+        <p class="wheel-modal-kicker">Wheel of punishments</p>
+      </div>
+      <div id="wheel-result-stage" hidden>
+        <p class="wheel-modal-kicker" id="wheel-result-kicker">Your punishment</p>
+        <h2 id="wheel-punishment-label" class="wheel-punishment-label"></h2>
+        <p id="wheel-punishment-text" class="wheel-punishment-text"></p>
+        <div class="wheel-countdown">
+          <span id="wheel-countdown-num" class="wheel-countdown-num">60</span>
+          <span class="wheel-countdown-unit">s</span>
+        </div>
+        <p id="wheel-countdown-hint" class="muted wheel-countdown-hint">
+          Scan your trump skip badge before time runs out!
+        </p>
+      </div>
+    </div>
+  </div>
+
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=6"></script>
+  <script src="/static/js/app.js?v=10"></script>
 {% endblock %}

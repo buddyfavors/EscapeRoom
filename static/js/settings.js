@@ -13,6 +13,13 @@ const saveMsgPun = document.getElementById("save-msg-punishments");
 const gmPre = document.getElementById("gm-snapshot");
 const gmProgramming = document.getElementById("gm-programming");
 const btnGm = document.getElementById("btn-refresh-gm");
+const gmNameInput = document.getElementById("gm-name");
+const badPhrasesText = document.getElementById("bad-phrases-text");
+const wildcardGoodTag = document.getElementById("wildcard-good-tag");
+const wildcardTrumpTag = document.getElementById("wildcard-trump-tag");
+const btnSaveRoom = document.getElementById("btn-save-room");
+const btnReloadRoom = document.getElementById("btn-reload-room");
+const saveMsgRoom = document.getElementById("save-msg-room");
 
 function setSaveMsg(el, text, ok) {
   el.textContent = text || "";
@@ -160,9 +167,54 @@ async function refreshGm() {
   gmProgramming.classList.remove("muted");
 }
 
+async function loadRoomSettings() {
+  const res = await fetch("/api/room-settings");
+  const data = await res.json();
+  if (gmNameInput) gmNameInput.value = data.gamemaster_name || "Gamemaster";
+  if (badPhrasesText) {
+    badPhrasesText.value = (data.bad_scan_phrases || []).join("\n");
+  }
+  if (wildcardGoodTag) wildcardGoodTag.value = data.wildcard_free_good_tag || "";
+  if (wildcardTrumpTag) wildcardTrumpTag.value = data.wildcard_trump_tag || "";
+}
+
+if (btnSaveRoom) {
+  btnSaveRoom.addEventListener("click", async () => {
+    btnSaveRoom.disabled = true;
+    try {
+      const phrases = (badPhrasesText?.value || "")
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!phrases.length) {
+        throw new Error("Add at least one bad-scan phrase.");
+      }
+      await postJson("/api/room-settings", {
+        gamemaster_name: (gmNameInput?.value || "Gamemaster").trim(),
+        bad_scan_phrases: phrases,
+        wildcard_free_good_tag: (wildcardGoodTag?.value || "").trim() || null,
+        wildcard_trump_tag: (wildcardTrumpTag?.value || "").trim() || null,
+      });
+      setSaveMsg(saveMsgRoom, "Room settings saved.", true);
+    } catch (e) {
+      setSaveMsg(saveMsgRoom, String(e.message || e), false);
+    } finally {
+      btnSaveRoom.disabled = false;
+    }
+  });
+}
+
+if (btnReloadRoom) {
+  btnReloadRoom.addEventListener("click", async () => {
+    await loadRoomSettings();
+    setSaveMsg(saveMsgRoom, "Room settings reloaded.", true);
+  });
+}
+
 btnGm.addEventListener("click", refreshGm);
 
 loadCodes();
 loadRfid();
 loadPunishments();
+loadRoomSettings();
 refreshGm();

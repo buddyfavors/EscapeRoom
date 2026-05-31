@@ -14,14 +14,23 @@ from pydantic import BaseModel, Field, model_validator
 from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
 from escape_room.game_engine import GameEngine
 from escape_room.models import (
+    BountyTheme,
     CodePools,
+    DEFAULT_GOOD_CODES_PER_REWARD,
+    DEFAULT_FINAL_COUNTDOWN_START_AFTER,
     DEFAULT_PUNISHMENT_LIMIT,
+    DEFAULT_REWARDS_TO_WIN,
+    DEFAULT_RFIDS_PER_PUNISHMENT,
+    DEFAULT_TIMER_MINUTES,
     Difficulty,
+    GameMode,
     GameSnapshot,
     LockCounts,
     LockKind,
     LockSlot,
     RFID_GOOD_PERCENT,
+    RFID_GOOD_PERCENT_BASE,
+    RFID_PRD_BAD_INCREMENT,
 )
 from escape_room.rfid import RfidKeyboardListener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
@@ -36,6 +45,12 @@ from escape_room.minigames.ws_rps import run_rps_session
 from escape_room.minigames.ws_simon import run_simon_session
 from escape_room.minigames.ws_pattern import run_pattern_session
 from escape_room.storage import load_code_pools, save_code_pools_json, validate_codes_json
+from escape_room.room_settings_store import (
+    RoomSettings,
+    load_room_settings,
+    save_room_settings,
+    validate_room_settings_json,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,13 +76,28 @@ class PunishmentsTextBody(BaseModel):
     text: str
 
 
+class RoomSettingsBody(BaseModel):
+    gamemaster_name: str = Field(min_length=1, max_length=40)
+    bad_scan_phrases: list[str] = Field(min_length=1)
+    wildcard_free_good_tag: str | None = None
+    wildcard_trump_tag: str | None = None
+
+
 class GameStartBody(BaseModel):
+    game_mode: GameMode = GameMode.breakout
     difficulty: Difficulty = Difficulty.medium
     digit3: int | None = Field(default=None, ge=0)
     letter5: int | None = Field(default=None, ge=0)
     digit4: int | None = Field(default=None, ge=0)
     locks: LockCounts | None = None
     punishment_limit: int | None = Field(default=None, ge=1, le=99)
+    timer_minutes: int | None = Field(default=None, ge=1, le=180)
+    rfids_per_punishment: int | None = Field(default=None, ge=1, le=99)
+    good_codes_per_reward: int | None = Field(default=None, ge=1, le=99)
+    rewards_to_win: int | None = Field(default=None, ge=1, le=99)
+    bounty_theme: BountyTheme = BountyTheme.breakout
+    final_countdown_enabled: bool = False
+    final_countdown_start_after: int | None = Field(default=None, ge=1, le=99)
 
     @model_validator(mode="before")
     @classmethod
@@ -98,16 +128,68 @@ class GameStartBody(BaseModel):
             return self.punishment_limit
         return DEFAULT_PUNISHMENT_LIMIT
 
+    def resolved_timer_minutes(self) -> int:
+        if self.timer_minutes is not None:
+            return self.timer_minutes
+        return DEFAULT_TIMER_MINUTES
+
+    def resolved_rfids_per_punishment(self) -> int:
+        if self.rfids_per_punishment is not None:
+            return self.rfids_per_punishment
+        return DEFAULT_RFIDS_PER_PUNISHMENT
+
+    def resolved_good_codes_per_reward(self) -> int:
+        if self.good_codes_per_reward is not None:
+            return self.good_codes_per_reward
+        return DEFAULT_GOOD_CODES_PER_REWARD
+
+    def resolved_rewards_to_win(self) -> int:
+        if self.rewards_to_win is not None:
+            return self.rewards_to_win
+        return DEFAULT_REWARDS_TO_WIN
+
+    def resolved_final_countdown_start_after(self) -> int:
+        if self.final_countdown_start_after is not None:
+            return self.final_countdown_start_after
+        return DEFAULT_FINAL_COUNTDOWN_START_AFTER
+
 
 def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
     if snap is None:
         return None
     return {
         "difficulty": snap.difficulty.value,
+        "game_mode": snap.game_mode.value,
+        "phase": snap.phase.value,
         "rfid_good_percent": snap.rfid_good_percent,
         "rfid_bad_chance_percent": snap.rfid_bad_chance_percent,
         "started_at_iso": snap.started_at_iso,
         "won": snap.won,
+        "timer_duration_sec": snap.timer_duration_sec,
+        "timer_ends_at_iso": snap.timer_ends_at_iso,
+        "timer_seconds_remaining": snap.timer_seconds_remaining,
+        "deadline_cycle": snap.deadline_cycle,
+        "final_countdown_enabled": snap.final_countdown_enabled,
+        "final_countdown_start_after": snap.final_countdown_start_after,
+        "gamemaster_name": snap.gamemaster_name,
+        "mercy_free_scan_available": snap.mercy_free_scan_available,
+        "mercy_free_scan_pending": snap.mercy_free_scan_pending,
+        "punishment_resolution": snap.punishment_resolution.value,
+        "pending_punishment_label": snap.pending_punishment_label,
+        "pending_punishment_message": snap.pending_punishment_message,
+        "pending_punishment_is_minigame": snap.pending_punishment_is_minigame,
+        "punishment_timer_seconds_remaining": snap.punishment_timer_seconds_remaining,
+        "punishment_timer_kind": snap.punishment_timer_kind,
+        "wildcard_free_good_used": snap.wildcard_free_good_used,
+        "wildcard_trump_used": snap.wildcard_trump_used,
+        "rfids_per_punishment": snap.rfids_per_punishment,
+        "rfids_collected": snap.rfids_collected,
+        "bounty_theme": snap.bounty_theme.value if snap.bounty_theme else None,
+        "good_codes_per_reward": snap.good_codes_per_reward,
+        "good_codes_progress": snap.good_codes_progress,
+        "rewards_earned": snap.rewards_earned,
+        "rewards_to_win": snap.rewards_to_win,
+        "bad_code_effect": snap.bad_code_effect,
         "bad_codes_progress": snap.bad_codes_progress,
         "bad_codes_goal": snap.bad_codes_goal,
         "punishments_received": snap.punishments_received,
@@ -215,6 +297,18 @@ def _lock_setup_payload() -> dict[str, Any]:
         },
             "defaults": LockCounts().model_dump(),
             "default_punishment_limit": DEFAULT_PUNISHMENT_LIMIT,
+            "default_timer_minutes": DEFAULT_TIMER_MINUTES,
+            "default_rfids_per_punishment": DEFAULT_RFIDS_PER_PUNISHMENT,
+            "default_good_codes_per_reward": DEFAULT_GOOD_CODES_PER_REWARD,
+            "default_rewards_to_win": DEFAULT_REWARDS_TO_WIN,
+            "default_final_countdown_start_after": DEFAULT_FINAL_COUNTDOWN_START_AFTER,
+            "gamemaster_name": load_room_settings().gamemaster_name,
+            "game_modes": [m.value for m in GameMode],
+            "bounty_themes": [t.value for t in BountyTheme],
+            "rfid_base_good_percent": RFID_GOOD_PERCENT_BASE,
+            "rfid_prd_increment_percent": {
+                d.value: round(RFID_PRD_BAD_INCREMENT[d] * 100) for d in Difficulty
+            },
             "rfid_luck": {d.value: RFID_GOOD_PERCENT[d] for d in Difficulty},
     }
 
@@ -228,6 +322,7 @@ async def lifespan(_app: FastAPI):
     tags = load_rfid_tags()
     state.engine.set_rfid_tags(tags)
     state.engine.set_punishments(load_punishments())
+    state.engine.set_room_settings(load_room_settings())
     unsub = state.engine.subscribe(state._schedule_broadcast)
 
     if state.rfid.start():
@@ -375,6 +470,20 @@ async def post_punishments_raw(body: PunishmentsTextBody) -> JSONResponse:
     return JSONResponse(content={"ok": True, "count": len(entries)})
 
 
+@app.get("/api/room-settings")
+async def get_room_settings() -> JSONResponse:
+    settings = load_room_settings()
+    return JSONResponse(content=settings.model_dump(mode="json"))
+
+
+@app.post("/api/room-settings")
+async def post_room_settings(body: RoomSettingsBody) -> JSONResponse:
+    settings = RoomSettings.model_validate(body.model_dump())
+    save_room_settings(settings)
+    state.engine.set_room_settings(settings)
+    return JSONResponse(content={"ok": True, "settings": settings.model_dump(mode="json")})
+
+
 def _lock_kind_label(kind: LockKind) -> str:
     if kind == "digit3":
         return "3-digit lock"
@@ -450,10 +559,38 @@ async def game_start(body: GameStartBody) -> JSONResponse:
             body.difficulty,
             body.lock_counts(),
             body.resolved_punishment_limit(),
+            game_mode=body.game_mode,
+            timer_minutes=body.resolved_timer_minutes(),
+            rfids_per_punishment=body.resolved_rfids_per_punishment(),
+            good_codes_per_reward=body.resolved_good_codes_per_reward(),
+            rewards_to_win=body.resolved_rewards_to_win(),
+            bounty_theme=body.bounty_theme,
+            final_countdown_enabled=body.final_countdown_enabled,
+            final_countdown_start_after=body.resolved_final_countdown_start_after(),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     # Engine emits game_started; also return for clients without WS
+    return JSONResponse(content={"ok": True, "snapshot": _redact_snapshot(snap)})
+
+
+@app.post("/api/game/punishment-complete")
+async def game_punishment_complete() -> JSONResponse:
+    """Deadline mode: call after a minigame punishment finishes."""
+    ok = state.engine.complete_punishment()
+    if not ok:
+        raise HTTPException(status_code=400, detail="No punishment waiting to complete.")
+    snap = state.engine.snapshot()
+    return JSONResponse(content={"ok": True, "snapshot": _redact_snapshot(snap)})
+
+
+@app.post("/api/game/grant-mercy")
+async def game_grant_mercy() -> JSONResponse:
+    """Once per game: next regular RFID scan is forced good."""
+    ok = state.engine.grant_mercy_free_scan()
+    if not ok:
+        raise HTTPException(status_code=400, detail="Mercy already used or no active game.")
+    snap = state.engine.snapshot()
     return JSONResponse(content={"ok": True, "snapshot": _redact_snapshot(snap)})
 
 
