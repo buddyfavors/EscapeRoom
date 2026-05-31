@@ -10,7 +10,8 @@ On Raspberry Pi, install Linux dependencies:
   pip install -r requirements-rpi.txt
 
 Optional environment variables:
-  RFID_DEVICE   path to evdev input device (default matches the original POC reader)
+  RFID_DEVICE   Linux/Pi: evdev path (/dev/input/by-id/…).
+                Windows: HID device substring or VID_xxxx&PID_yyyy (Raw Input; auto-detects RFID_Reader).
   ESCAPE_ROOM_HOST / ESCAPE_ROOM_PORT   bind address (default 0.0.0.0:8000)
 """
 

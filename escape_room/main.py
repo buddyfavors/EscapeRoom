@@ -32,7 +32,7 @@ from escape_room.models import (
     RFID_GOOD_PERCENT_BASE,
     RFID_PRD_BAD_INCREMENT,
 )
-from escape_room.rfid import RfidKeyboardListener
+from escape_room.rfid import create_rfid_listener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
 from escape_room.punishments_store import (
     load_punishments,
@@ -258,7 +258,7 @@ class AppState:
     def __init__(self) -> None:
         self.engine = GameEngine()
         self.ws = ConnectionManager()
-        self.rfid = RfidKeyboardListener(RFID_DEVICE_PATH, self._on_rfid_buffer)
+        self.rfid = create_rfid_listener(RFID_DEVICE_PATH, self._on_rfid_buffer)
         self.main_loop: asyncio.AbstractEventLoop | None = None
 
     def _on_rfid_buffer(self, buffer: str) -> None:
@@ -326,9 +326,16 @@ async def lifespan(_app: FastAPI):
     unsub = state.engine.subscribe(state._schedule_broadcast)
 
     if state.rfid.start():
-        logger.info("RFID listener started on %s", RFID_DEVICE_PATH)
+        logger.info(
+            "RFID listener started (%s) — device spec %s",
+            state.rfid.backend_name,
+            RFID_DEVICE_PATH,
+        )
     else:
-        logger.info("RFID listener not started (missing evdev or device).")
+        logger.info(
+            "RFID listener not started (%s backend unavailable on this platform).",
+            getattr(state.rfid, "backend_name", "unknown"),
+        )
 
     yield
 
