@@ -3,6 +3,7 @@
 {% block content %}
   {% set avail = lock_setup.available %}
   {% set defs = lock_setup.defaults %}
+  <div id="banner" class="banner" role="status" aria-live="polite"></div>
   <section id="overview-view" class="panel kiosk-hero">
     <h1>Escape Room</h1>
     <p class="lede">
@@ -16,7 +17,7 @@
         <input type="radio" name="game_mode" value="breakout" checked />
         <span class="mode-card-body">
           <strong>Breakout</strong>
-          <span class="muted">Classic escape — crack the locks before the Gamemaster's punishments run out.</span>
+          <span class="muted">Classic escape — crack the locks before time runs out or the Gamemaster wins.</span>
         </span>
       </label>
       <label class="mode-card">
@@ -63,6 +64,24 @@
         </p>
         <div id="gm-preview" class="gm-programming muted">Pick at least one lock to preview combinations.</div>
       </section>
+
+      <fieldset class="punishment-limit" id="punishment-limit-fieldset">
+        <legend>Gamemaster win condition</legend>
+        <p class="muted punishment-limit-hint" id="punishment-limit-hint">
+          Optionally cap wheel punishments — when the limit is reached, the Gamemaster wins and the room fails to escape.
+        </p>
+        <label class="mode-card">
+          <input type="checkbox" id="punishment-limit-enabled" />
+          <span class="mode-card-body">
+            <strong>Limit punishments</strong>
+            <span class="muted">Off by default — the Gamemaster cannot win by punishment count alone.</span>
+          </span>
+        </label>
+        <div class="punishment-limit-row">
+          <label for="punishment-limit">Punishments allowed</label>
+          <input id="punishment-limit" type="number" min="1" max="99" value="{{ lock_setup.default_punishment_limit }}" disabled />
+        </div>
+      </fieldset>
     </div>
 
     <div id="mode-deadline-settings" hidden>
@@ -125,16 +144,8 @@
       <label><input type="radio" name="difficulty" value="hard" /> Hard — +14% bad per good scan</label>
     </fieldset>
 
-    <fieldset class="punishment-limit" id="punishment-limit-fieldset">
-      <legend>Gamemaster win condition</legend>
-      <p class="muted punishment-limit-hint" id="punishment-limit-hint">How many wheel punishments before the Gamemaster wins?</p>
-      <div class="punishment-limit-row">
-        <label for="punishment-limit">Punishments allowed</label>
-        <input id="punishment-limit" type="number" min="1" max="99" value="{{ lock_setup.default_punishment_limit }}" />
-      </div>
-    </fieldset>
-
     <div class="actions">
+      <p id="setup-error" class="setup-error" hidden role="alert"></p>
       <button id="btn-play" type="button" class="primary big">Start Game</button>
       {% if minigames_enabled %}
         <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
@@ -157,7 +168,6 @@
         <p id="timer-display" class="timer-display" hidden></p>
         <p id="rfid-next-bad" class="muted rfid-next-bad" hidden></p>
         <div id="gm-controls" class="gm-controls" hidden>
-          <button id="btn-grant-mercy" type="button" class="ghost">Grant free good scan</button>
           <span id="gm-status-line" class="muted gm-status-line"></span>
         </div>
       </div>
@@ -189,7 +199,7 @@
           title="Each time the punishment wheel spins. If this reaches the limit, the Gamemaster wins."
         >
           <span class="strike-label">Punishments</span>
-          <span id="punishments-count" class="strike-count">0 / 3</span>
+          <span id="punishments-count" class="strike-count">0</span>
         </div>
         {% if minigames_enabled %}
           <div
@@ -206,10 +216,6 @@
     </div>
     <p class="muted meter-hint" id="meter-hint"></p>
 
-    <p id="last-punishment" class="last-punishment muted" hidden></p>
-
-    <div id="banner" class="banner" role="status" aria-live="polite"></div>
-
     <section class="progress" id="locks-section">
       <h2>Locks</h2>
       <div id="locks" class="locks"></div>
@@ -224,6 +230,9 @@
           <div class="wheel-spinner-pointer" aria-hidden="true"></div>
         </div>
         <p class="wheel-modal-kicker">Wheel of punishments</p>
+        <p id="wheel-last-kicker" class="wheel-modal-kicker wheel-last-kicker" hidden>Last punishment</p>
+        <h2 id="wheel-spin-label" class="wheel-punishment-label" hidden></h2>
+        <p id="wheel-spin-text" class="wheel-punishment-text muted" hidden></p>
       </div>
       <div id="wheel-result-stage" hidden>
         <p class="wheel-modal-kicker" id="wheel-result-kicker">Your punishment</p>
@@ -241,5 +250,5 @@
   </div>
 
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=10"></script>
+  <script src="/static/js/app.js?v=20"></script>
 {% endblock %}

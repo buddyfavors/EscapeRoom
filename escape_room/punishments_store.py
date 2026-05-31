@@ -46,6 +46,18 @@ def _classify(raw: str) -> PunishmentEntry | None:
     return PunishmentEntry(raw=line, kind="text", target=line, message=line)
 
 
+def split_punishment_display(text: str) -> tuple[str, str]:
+    """Split 'Title: body' wheel lines into a short label and detail text."""
+    line = text.strip()
+    if ": " in line:
+        title, body = line.split(": ", 1)
+        title = title.strip()
+        body = body.strip()
+        if title and body:
+            return title, body
+    return line, ""
+
+
 def parse_punishments(text: str) -> list[PunishmentEntry]:
     out: list[PunishmentEntry] = []
     for line in text.splitlines():

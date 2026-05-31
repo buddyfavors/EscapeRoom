@@ -1,4 +1,5 @@
 const banner = document.getElementById("banner");
+const setupError = document.getElementById("setup-error");
 const locksEl = document.getElementById("locks");
 const locksSection = document.getElementById("locks-section");
 const btnPlay = document.getElementById("btn-play");
@@ -19,11 +20,10 @@ const clueDots = document.getElementById("clue-dots");
 const clueCount = document.getElementById("clue-count");
 const punishmentsPill = document.getElementById("punishments-pill");
 const punishmentsCount = document.getElementById("punishments-count");
-const lastPunishmentEl = document.getElementById("last-punishment");
 const gmWonBadge = document.getElementById("gm-won-badge");
 const rfidNextBadEl = document.getElementById("rfid-next-bad");
 const punishmentLimitInput = document.getElementById("punishment-limit");
-const punishmentLimitHint = document.getElementById("punishment-limit-hint");
+const punishmentLimitEnabledInput = document.getElementById("punishment-limit-enabled");
 const meterHint = document.getElementById("meter-hint");
 const rewardsPill = document.getElementById("rewards-pill");
 const rewardsCount = document.getElementById("rewards-count");
@@ -41,12 +41,14 @@ const rewardsToWinInput = document.getElementById("rewards-to-win");
 const finalCountdownEnabledInput = document.getElementById("final-countdown-enabled");
 const finalCountdownStartAfterInput = document.getElementById("final-countdown-start-after");
 const gmControls = document.getElementById("gm-controls");
-const btnGrantMercy = document.getElementById("btn-grant-mercy");
 const gmStatusLine = document.getElementById("gm-status-line");
 const wheelModal = document.getElementById("wheel-modal");
 const wheelSpinStage = document.getElementById("wheel-spin-stage");
 const wheelResultStage = document.getElementById("wheel-result-stage");
 const wheelSpinner = document.getElementById("wheel-spinner");
+const wheelSpinLabel = document.getElementById("wheel-spin-label");
+const wheelSpinText = document.getElementById("wheel-spin-text");
+const wheelLastKicker = document.getElementById("wheel-last-kicker");
 const wheelPunishmentLabel = document.getElementById("wheel-punishment-label");
 const wheelPunishmentText = document.getElementById("wheel-punishment-text");
 const wheelCountdownNum = document.getElementById("wheel-countdown-num");
@@ -81,6 +83,58 @@ let timerCycle = 1;
 const WHEEL_SPIN_MS = 4000;
 let wheelModalOpen = false;
 let wheelSpinTimer = null;
+let punishmentTimerEndsAtMs = null;
+let punishmentTimerTick = null;
+let punishmentTimerKind = null;
+
+function normalizeWheelPunishment(punishment) {
+  const p = punishment || {};
+  let label = (p.label != null ? String(p.label) : "").trim();
+  let message = (p.message != null ? String(p.message) : "").trim();
+  if (!label && message) {
+    label = message;
+    message = "";
+  }
+  if (message && message === label) message = "";
+  return { label, message };
+}
+
+function punishmentFromPlainText(text) {
+  const line = text != null ? String(text).trim() : "";
+  if (!line) return null;
+  if (line.includes(": ")) {
+    const splitAt = line.indexOf(": ");
+    return {
+      label: line.slice(0, splitAt).trim(),
+      message: line.slice(splitAt + 2).trim(),
+    };
+  }
+  return { label: line, message: "" };
+}
+
+function applyWheelPunishmentDisplay(labelEl, textEl, punishment, { fallbackLabel = "Punishment" } = {}) {
+  const { label, message } = normalizeWheelPunishment(punishment);
+  const heading = label || message || fallbackLabel;
+  if (labelEl) {
+    labelEl.textContent = heading;
+    labelEl.hidden = !heading;
+  }
+  if (textEl) {
+    textEl.textContent = message;
+    textEl.hidden = !message;
+  }
+}
+
+function setWheelSpinStageDisplay(lastPunishmentText) {
+  const prior = punishmentFromPlainText(lastPunishmentText);
+  const hasPrior = !!(prior && (prior.label || prior.message));
+  if (wheelLastKicker) wheelLastKicker.hidden = !hasPrior;
+  if (hasPrior) {
+    applyWheelPunishmentDisplay(wheelSpinLabel, wheelSpinText, prior);
+  } else {
+    applyWheelPunishmentDisplay(wheelSpinLabel, wheelSpinText, null);
+  }
+}
 
 function hideWheelModal() {
   wheelModalOpen = false;
@@ -89,27 +143,61 @@ function hideWheelModal() {
     window.clearTimeout(wheelSpinTimer);
     wheelSpinTimer = null;
   }
+  setWheelSpinStageDisplay(null);
+  stopPunishmentTimerTick();
 }
 
-function updateWheelCountdown(snap) {
-  if (!wheelModalOpen || !snap) return;
-  const sec = snap.punishment_timer_seconds_remaining;
-  if (sec == null) return;
+function stopPunishmentTimerTick() {
+  if (punishmentTimerTick) window.clearInterval(punishmentTimerTick);
+  punishmentTimerTick = null;
+  punishmentTimerEndsAtMs = null;
+  punishmentTimerKind = null;
+}
+
+function renderPunishmentWheelCountdown() {
+  if (!wheelModalOpen || punishmentTimerEndsAtMs == null) return;
+  const sec = Math.max(0, Math.floor((punishmentTimerEndsAtMs - Date.now()) / 1000));
   if (wheelCountdownNum) {
-    wheelCountdownNum.textContent = String(Math.max(0, sec));
+    wheelCountdownNum.textContent = String(sec);
     wheelCountdownNum.classList.toggle("urgent", sec <= 10);
   }
-  const kind = snap.punishment_timer_kind;
   if (wheelCountdownHint) {
-    if (kind === "complete") {
+    if (punishmentTimerKind === "complete") {
       wheelCountdownHint.textContent = "Complete your punishment before time runs out!";
     } else {
       wheelCountdownHint.textContent = "Scan your trump skip badge before time runs out!";
     }
   }
   if (wheelResultKicker) {
-    wheelResultKicker.textContent = kind === "complete" ? "Do your penance" : "Skip window";
+    wheelResultKicker.textContent =
+      punishmentTimerKind === "complete" ? "Do your penance" : "Skip window";
   }
+}
+
+function syncPunishmentTimerFromSnapshot(snap) {
+  if (!wheelModalOpen || !snap) {
+    if (!wheelModalOpen) stopPunishmentTimerTick();
+    return;
+  }
+  const resolution = snap.punishment_resolution;
+  if (!resolution || resolution === "none") {
+    stopPunishmentTimerTick();
+    return;
+  }
+  const remaining = Number(snap.punishment_timer_seconds_remaining);
+  if (!Number.isFinite(remaining)) {
+    stopPunishmentTimerTick();
+    return;
+  }
+  const kind = snap.punishment_timer_kind || null;
+  if (kind !== punishmentTimerKind || punishmentTimerEndsAtMs == null) {
+    punishmentTimerKind = kind;
+    punishmentTimerEndsAtMs = Date.now() + remaining * 1000;
+  }
+  if (!punishmentTimerTick) {
+    punishmentTimerTick = window.setInterval(renderPunishmentWheelCountdown, 1000);
+  }
+  renderPunishmentWheelCountdown();
 }
 
 function showWheelModal(msg) {
@@ -118,20 +206,20 @@ function showWheelModal(msg) {
   wheelModal.hidden = false;
   if (wheelSpinStage) wheelSpinStage.hidden = false;
   if (wheelResultStage) wheelResultStage.hidden = true;
+  setWheelSpinStageDisplay(msg.snapshot?.last_punishment);
   if (wheelSpinner) {
     wheelSpinner.classList.remove("spinning");
     void wheelSpinner.offsetWidth;
     wheelSpinner.classList.add("spinning");
   }
   if (wheelSpinTimer) window.clearTimeout(wheelSpinTimer);
+  if (msg.snapshot) syncPunishmentTimerFromSnapshot(msg.snapshot);
   wheelSpinTimer = window.setTimeout(() => {
     wheelSpinTimer = null;
     if (wheelSpinStage) wheelSpinStage.hidden = true;
     if (wheelResultStage) wheelResultStage.hidden = false;
-    const p = msg.punishment || {};
-    if (wheelPunishmentLabel) wheelPunishmentLabel.textContent = p.label || "Punishment";
-    if (wheelPunishmentText) wheelPunishmentText.textContent = p.message || "";
-    if (msg.snapshot) updateWheelCountdown(msg.snapshot);
+    applyWheelPunishmentDisplay(wheelPunishmentLabel, wheelPunishmentText, msg.punishment);
+    renderPunishmentWheelCountdown();
   }, WHEEL_SPIN_MS);
 }
 
@@ -145,14 +233,12 @@ function syncWheelModalFromSnapshot(snap) {
     if (wheelModal) wheelModal.hidden = false;
     if (wheelSpinStage) wheelSpinStage.hidden = true;
     if (wheelResultStage) wheelResultStage.hidden = false;
-    if (wheelPunishmentLabel) {
-      wheelPunishmentLabel.textContent = snap.pending_punishment_label || "Punishment";
-    }
-    if (wheelPunishmentText) {
-      wheelPunishmentText.textContent = snap.pending_punishment_message || "";
-    }
+    applyWheelPunishmentDisplay(wheelPunishmentLabel, wheelPunishmentText, {
+      label: snap.pending_punishment_label,
+      message: snap.pending_punishment_message,
+    });
   }
-  updateWheelCountdown(snap);
+  syncPunishmentTimerFromSnapshot(snap);
 }
 
 function lockPayload(counts) {
@@ -172,6 +258,11 @@ function updateFinalCountdownInputs() {
   if (finalCountdownStartAfterInput) finalCountdownStartAfterInput.disabled = !on;
 }
 
+function updatePunishmentLimitInputs() {
+  const on = !!(punishmentLimitEnabledInput && punishmentLimitEnabledInput.checked);
+  if (punishmentLimitInput) punishmentLimitInput.disabled = !on;
+}
+
 function selectedGameMode() {
   const el = document.querySelector('input[name="game_mode"]:checked');
   return el ? el.value : "breakout";
@@ -187,23 +278,10 @@ function updateModePanels() {
   if (modeBreakoutSettings) modeBreakoutSettings.hidden = mode !== "breakout";
   if (modeDeadlineSettings) modeDeadlineSettings.hidden = mode !== "deadline";
   if (modeBountySettings) modeBountySettings.hidden = mode !== "bounty";
-  if (punishmentLimitHint) {
-    if (mode === "bounty") {
-      punishmentLimitHint.textContent =
-        "Only used with Breakout-style bad codes — how many wheel punishments before the Gamemaster wins?";
-    } else if (mode === "deadline") {
-      punishmentLimitHint.textContent =
-        "How many timer punishments before the Gamemaster wins?";
-    } else {
-      punishmentLimitHint.textContent =
-        "How many wheel punishments before the Gamemaster wins and the room fails to escape?";
-    }
-  }
   if (mode === "breakout") scheduleLockPreview();
   updateFinalCountdownInputs();
+  updatePunishmentLimitInputs();
 }
-
-function selectedGameMode() {
 
 function stopTimerTick() {
   if (timerTick) window.clearInterval(timerTick);
@@ -310,6 +388,9 @@ async function refreshLockPreview() {
 }
 
 function selectedPunishmentLimit() {
+  if (!punishmentLimitEnabledInput?.checked) {
+    return 0;
+  }
   const raw = punishmentLimitInput?.value || "3";
   const n = Math.max(1, Math.min(99, parseInt(raw, 10) || 3));
   if (punishmentLimitInput) punishmentLimitInput.value = String(n);
@@ -365,6 +446,10 @@ function applySetup(data, { resetValues = false } = {}) {
   if (punishmentLimitInput && data.default_punishment_limit != null) {
     punishmentLimitInput.value = String(data.default_punishment_limit);
   }
+  if (punishmentLimitEnabledInput) {
+    punishmentLimitEnabledInput.checked = !!data.default_punishment_limit_enabled;
+  }
+  updatePunishmentLimitInputs();
   if (timerMinutesInput && data.default_timer_minutes != null) {
     timerMinutesInput.value = String(data.default_timer_minutes);
   }
@@ -454,30 +539,19 @@ function renderBadCodesMeter(snap) {
 
 function renderPunishmentsMeter(snap) {
   if (!punishmentsPill) return;
-  if (!snap) {
-    if (punishmentsCount) punishmentsCount.textContent = "0 / 3";
-    punishmentsPill.classList.remove("ready");
-    if (lastPunishmentEl) {
-      lastPunishmentEl.hidden = true;
-      lastPunishmentEl.textContent = "";
-    }
-    return;
+  const show = snap && snap.game_mode === "breakout";
+  punishmentsPill.hidden = !show;
+  if (!show) return;
+  const limit = Number(snap.punishments_limit);
+  const capped = Number.isFinite(limit) && limit > 0;
+  const current = Math.max(0, Number(snap.punishments_received) || 0);
+  if (punishmentsCount) {
+    punishmentsCount.textContent = capped ? `${current} / ${limit}` : String(current);
   }
-  const limit = Math.max(1, Number(snap.punishments_limit) || 3);
-  const current = Math.max(0, Math.min(limit, Number(snap.punishments_received) || 0));
-  if (punishmentsCount) punishmentsCount.textContent = `${current} / ${limit}`;
-  punishmentsPill.classList.toggle("ready", current > 0 && current >= limit - 1);
-
-  if (lastPunishmentEl) {
-    const last = snap.last_punishment ? String(snap.last_punishment) : "";
-    if (last) {
-      lastPunishmentEl.hidden = false;
-      lastPunishmentEl.textContent = `Last punishment: ${last}`;
-    } else {
-      lastPunishmentEl.hidden = true;
-      lastPunishmentEl.textContent = "";
-    }
-  }
+  punishmentsPill.title = capped
+    ? "Each time the punishment wheel spins. If this reaches the limit, the Gamemaster wins."
+    : "Wheel punishments received this game.";
+  punishmentsPill.classList.toggle("ready", capped && current > 0 && current >= limit - 1);
 }
 
 function renderClueMinigameMeter(snap) {
@@ -504,7 +578,11 @@ function renderBountyMeters(snap) {
   const isBounty = mode === "bounty";
   if (rewardsPill) rewardsPill.hidden = !isBounty;
   if (bountyGoodPill) bountyGoodPill.hidden = !isBounty;
-  if (!isBounty) return;
+  if (!isBounty) {
+    if (rewardsCount) rewardsCount.textContent = "";
+    if (bountyGoodCount) bountyGoodCount.textContent = "";
+    return;
+  }
   const toWin = Math.max(1, Number(snap.rewards_to_win) || 5);
   const earned = Math.max(0, Number(snap.rewards_earned) || 0);
   const perReward = Math.max(1, Number(snap.good_codes_per_reward) || 5);
@@ -518,7 +596,10 @@ function renderCollectionMeter(snap) {
   const phase = snap && snap.phase;
   const show = mode === "deadline" && phase === "collection";
   if (collectionPill) collectionPill.hidden = !show;
-  if (!show) return;
+  if (!show) {
+    if (collectionCount) collectionCount.textContent = "";
+    return;
+  }
   const need = Math.max(1, Number(snap.rfids_per_punishment) || 4);
   const got = Math.max(0, Number(snap.rfids_collected) || 0);
   if (collectionCount) collectionCount.textContent = `${got} / ${need}`;
@@ -531,15 +612,7 @@ function renderGmControls(snap) {
     if (gmStatusLine) gmStatusLine.textContent = "";
     return;
   }
-  gmControls.hidden = false;
   const parts = [];
-  if (snap.mercy_free_scan_pending) {
-    parts.push("Mercy armed — next regular scan is forced good.");
-  } else if (snap.mercy_free_scan_available) {
-    parts.push("Mercy available (once per game).");
-  } else {
-    parts.push("Mercy used.");
-  }
   if (snap.punishment_resolution === "trump_window") {
     parts.push("Trump skip window open — scan the skip badge!");
   } else if (snap.punishment_resolution === "completing") {
@@ -547,9 +620,7 @@ function renderGmControls(snap) {
   }
   if (snap.wildcard_free_good_used) parts.push("Good wildcard badge spent.");
   if (snap.wildcard_trump_used) parts.push("Trump wildcard badge spent.");
-  if (btnGrantMercy) {
-    btnGrantMercy.disabled = !snap.mercy_free_scan_available || !!snap.mercy_free_scan_pending;
-  }
+  gmControls.hidden = parts.length === 0;
   if (gmStatusLine) gmStatusLine.textContent = parts.join(" ");
 }
 
@@ -698,12 +769,26 @@ function setActiveView(snap) {
   }
 }
 
+function setSetupError(text) {
+  if (!setupError) return;
+  if (text) {
+    setupError.textContent = text;
+    setupError.hidden = false;
+  } else {
+    setupError.textContent = "";
+    setupError.hidden = true;
+  }
+}
+
 function setBanner(text, tone) {
   if (!banner) return;
   banner.textContent = text || "";
   banner.classList.remove("ok", "bad");
   if (tone === "ok") banner.classList.add("ok");
   if (tone === "bad") banner.classList.add("bad");
+  if (text && overviewView && !overviewView.hidden) {
+    banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 function bannerToneForResult(r) {
@@ -729,30 +814,27 @@ async function postJson(url, body) {
 
 for (const input of Object.values(lockInputs)) {
   if (!input) continue;
-  input.addEventListener("input", scheduleLockPreview);
-  input.addEventListener("change", scheduleLockPreview);
+  input.addEventListener("input", () => {
+    scheduleLockPreview();
+    setSetupError("");
+  });
+  input.addEventListener("change", () => {
+    scheduleLockPreview();
+    setSetupError("");
+  });
 }
 
 document.querySelectorAll('input[name="game_mode"]').forEach((el) => {
-  el.addEventListener("change", updateModePanels);
+  el.addEventListener("change", () => {
+    updateModePanels();
+    setSetupError("");
+  });
 });
 if (finalCountdownEnabledInput) {
   finalCountdownEnabledInput.addEventListener("change", updateFinalCountdownInputs);
 }
-
-if (btnGrantMercy) {
-  btnGrantMercy.addEventListener("click", async () => {
-    btnGrantMercy.disabled = true;
-    try {
-      const data = await postJson("/api/game/grant-mercy", {});
-      setBanner(`Mercy granted — next scan is forced good.`, "ok");
-      setActiveView(data.snapshot);
-    } catch (e) {
-      setBanner(String(e.message || e), "bad");
-    } finally {
-      btnGrantMercy.disabled = false;
-    }
-  });
+if (punishmentLimitEnabledInput) {
+  punishmentLimitEnabledInput.addEventListener("change", updatePunishmentLimitInputs);
 }
 
 if (btnPlay) {
@@ -760,19 +842,27 @@ if (btnPlay) {
     const mode = selectedGameMode();
     const locks = selectedLockCounts();
     if (mode === "breakout" && locks.digit3 + locks.letter5 + locks.digit4 < 1) {
-      setBanner("Pick at least one lock to start Breakout.", "bad");
+      const msg = "Pick at least one lock to start Breakout.";
+      setSetupError(msg);
+      setBanner(msg, "bad");
       return;
     }
+    setSetupError("");
     btnPlay.disabled = true;
     try {
       const payload = {
         game_mode: mode,
         difficulty: selectedDifficulty(),
-        punishment_limit: selectedPunishmentLimit(),
         digit3: locks.digit3,
         letter5: locks.letter5,
         digit4: locks.digit4,
       };
+      if (mode === "breakout") {
+        const punishmentLimit = selectedPunishmentLimit();
+        if (punishmentLimit > 0) {
+          payload.punishment_limit = punishmentLimit;
+        }
+      }
       if (mode === "deadline") {
         payload.timer_minutes = clampInput(timerMinutesInput, 1, 180, 10);
         payload.rfids_per_punishment = clampInput(rfidsPerPunishmentInput, 1, 99, 4);
@@ -813,7 +903,6 @@ function applyWsMessage(msg) {
     msg.type === "timer_expired" ||
     msg.type === "timer_restarted" ||
     msg.type === "punishment_complete" ||
-    msg.type === "mercy_granted" ||
     msg.type === "trump_used" ||
     msg.type === "punishment_wheel" ||
     msg.type === "punishment_phase" ||
@@ -843,16 +932,13 @@ function applyWsMessage(msg) {
     if (msg.type === "timer_restarted") {
       setBanner("All RFIDs scanned — the timer restarts!", "ok");
     }
-    if (msg.type === "mercy_granted") {
-      setBanner("Mercy granted — next regular RFID scan is forced good.", "ok");
-    }
     if (msg.type === "trump_used") {
       hideWheelModal();
       setBanner(msg.message || "Trump card — punishment skipped!", "ok");
       return;
     }
     if (msg.type === "punishment_phase") {
-      if (msg.snapshot) updateWheelCountdown(msg.snapshot);
+      if (msg.snapshot) syncPunishmentTimerFromSnapshot(msg.snapshot);
       setBanner("Trump window closed — complete your punishment!", "bad");
       return;
     }
@@ -923,6 +1009,7 @@ function connectWs() {
   await loadSetup();
   updateModePanels();
   updateFinalCountdownInputs();
+  updatePunishmentLimitInputs();
   try {
     const res = await fetch("/api/game/status");
     const data = await res.json();

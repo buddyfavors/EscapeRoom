@@ -224,20 +224,8 @@ h2 {
   font-weight: 700;
 }
 
-.difficulty + .punishment-limit {
+.gm-preview-panel + .punishment-limit {
   margin-top: 28px;
-}
-
-.punishment-limit + .actions {
-  margin-top: 20px;
-}
-
-.last-punishment {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-left: 3px solid rgba(255, 107, 107, 0.55);
-  background: rgba(255, 107, 107, 0.06);
-  font-size: 0.95rem;
 }
 
 .strike-pill.punish-pill {
@@ -409,6 +397,16 @@ button:disabled {
   color: var(--danger);
 }
 
+.setup-error {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .locks {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -546,6 +544,11 @@ button:disabled {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.active-pills [hidden],
+.gm-controls[hidden] {
+  display: none !important;
 }
 
 .strike-pill {
@@ -872,6 +875,12 @@ code {
   font-size: 0.78rem;
   color: var(--muted);
   margin: 0 0 8px;
+}
+
+.wheel-last-kicker {
+  margin-top: 12px;
+  font-size: 0.72rem;
+  color: rgba(255, 215, 223, 0.65);
 }
 
 .wheel-punishment-label {

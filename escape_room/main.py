@@ -19,6 +19,8 @@ from escape_room.models import (
     DEFAULT_GOOD_CODES_PER_REWARD,
     DEFAULT_FINAL_COUNTDOWN_START_AFTER,
     DEFAULT_PUNISHMENT_LIMIT,
+    DEFAULT_PUNISHMENT_LIMIT_ENABLED,
+    UNLIMITED_PUNISHMENT_LIMIT,
     DEFAULT_REWARDS_TO_WIN,
     DEFAULT_RFIDS_PER_PUNISHMENT,
     DEFAULT_TIMER_MINUTES,
@@ -59,8 +61,9 @@ templates = Jinja2Templates(directory=str(ROOT_DIR / "templates"))
 
 def _html(request: Request, name: str) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         name,
-        {"request": request, "minigames_enabled": MINIGAMES_ENABLED},
+        {"minigames_enabled": MINIGAMES_ENABLED},
     )
 
 
@@ -90,7 +93,7 @@ class GameStartBody(BaseModel):
     letter5: int | None = Field(default=None, ge=0)
     digit4: int | None = Field(default=None, ge=0)
     locks: LockCounts | None = None
-    punishment_limit: int | None = Field(default=None, ge=1, le=99)
+    punishment_limit: int | None = Field(default=None, ge=0, le=99)
     timer_minutes: int | None = Field(default=None, ge=1, le=180)
     rfids_per_punishment: int | None = Field(default=None, ge=1, le=99)
     good_codes_per_reward: int | None = Field(default=None, ge=1, le=99)
@@ -124,9 +127,11 @@ class GameStartBody(BaseModel):
         return LockCounts()
 
     def resolved_punishment_limit(self) -> int:
+        if self.game_mode is not GameMode.breakout:
+            return UNLIMITED_PUNISHMENT_LIMIT
         if self.punishment_limit is not None:
             return self.punishment_limit
-        return DEFAULT_PUNISHMENT_LIMIT
+        return UNLIMITED_PUNISHMENT_LIMIT
 
     def resolved_timer_minutes(self) -> int:
         if self.timer_minutes is not None:
@@ -172,8 +177,6 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         "final_countdown_enabled": snap.final_countdown_enabled,
         "final_countdown_start_after": snap.final_countdown_start_after,
         "gamemaster_name": snap.gamemaster_name,
-        "mercy_free_scan_available": snap.mercy_free_scan_available,
-        "mercy_free_scan_pending": snap.mercy_free_scan_pending,
         "punishment_resolution": snap.punishment_resolution.value,
         "pending_punishment_label": snap.pending_punishment_label,
         "pending_punishment_message": snap.pending_punishment_message,
@@ -297,6 +300,7 @@ def _lock_setup_payload() -> dict[str, Any]:
         },
             "defaults": LockCounts().model_dump(),
             "default_punishment_limit": DEFAULT_PUNISHMENT_LIMIT,
+            "default_punishment_limit_enabled": DEFAULT_PUNISHMENT_LIMIT_ENABLED,
             "default_timer_minutes": DEFAULT_TIMER_MINUTES,
             "default_rfids_per_punishment": DEFAULT_RFIDS_PER_PUNISHMENT,
             "default_good_codes_per_reward": DEFAULT_GOOD_CODES_PER_REWARD,
@@ -351,9 +355,9 @@ app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="stat
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "minigames_enabled": MINIGAMES_ENABLED,
             "lock_setup": _lock_setup_payload(),
         },
@@ -587,16 +591,6 @@ async def game_punishment_complete() -> JSONResponse:
     ok = state.engine.complete_punishment()
     if not ok:
         raise HTTPException(status_code=400, detail="No punishment waiting to complete.")
-    snap = state.engine.snapshot()
-    return JSONResponse(content={"ok": True, "snapshot": _redact_snapshot(snap)})
-
-
-@app.post("/api/game/grant-mercy")
-async def game_grant_mercy() -> JSONResponse:
-    """Once per game: next regular RFID scan is forced good."""
-    ok = state.engine.grant_mercy_free_scan()
-    if not ok:
-        raise HTTPException(status_code=400, detail="Mercy already used or no active game.")
     snap = state.engine.snapshot()
     return JSONResponse(content={"ok": True, "snapshot": _redact_snapshot(snap)})
 
