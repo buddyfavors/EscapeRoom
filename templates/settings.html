@@ -44,7 +44,8 @@
     <p class="lede">
       Customize the <strong>Gamemaster</strong> name shown in messages. Bad-scan phrases use
       <code>{gm}</code> as a placeholder. Configure two special 10-digit RFID badges: one forces a
-      good scan, one for the trump skip badge (scan only during the 1-minute window after the wheel lands).
+      good scan toward rewards, one for the skip badge (scan while a punishment is pending).
+      The reward badge has a 60-second cooldown. You can also configure a Gamemaster badge.
     </p>
     <label for="gm-name" class="label">Gamemaster name</label>
     <input id="gm-name" type="text" class="text-input" maxlength="40" placeholder="Gamemaster" />
@@ -53,12 +54,16 @@
     <textarea id="bad-phrases-text" class="codes" spellcheck="false" placeholder="Bad scan — {gm} laughs."></textarea>
 
     <div class="punishment-limit-row">
-      <label for="wildcard-good-tag">Wildcard badge — guaranteed good scan</label>
+      <label for="wildcard-good-tag">Reward badge — guaranteed good scan</label>
       <input id="wildcard-good-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
     <div class="punishment-limit-row">
-      <label for="wildcard-trump-tag">Trump badge — skip during 1-minute wheel window</label>
+      <label for="wildcard-trump-tag">Skip badge — use while punishment is pending</label>
       <input id="wildcard-trump-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
+    </div>
+    <div class="punishment-limit-row">
+      <label for="gm-complete-tag">Gamemaster badge — complete pending punishment or trigger immediate punishment</label>
+      <input id="gm-complete-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
 
     <div class="actions">
@@ -131,5 +136,5 @@
     </ul>
   </section>
 
-  <script src="/static/js/settings.js"></script>
+  <script src="/static/js/settings.js?v=2"></script>
 {% endblock %}

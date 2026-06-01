@@ -268,7 +268,7 @@ h2 {
 
 .lock-pick-row {
   display: grid;
-  grid-template-columns: 1fr 5rem 8rem;
+  grid-template-columns: 1fr 3rem 5rem 3rem 8rem;
   gap: 10px 14px;
   align-items: center;
   margin-bottom: 10px;
@@ -286,6 +286,23 @@ h2 {
   background: #0f1622;
   color: var(--text);
   font-weight: 700;
+  text-align: center;
+}
+
+.lock-step-btn {
+  padding: 8px 0;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.lock-pick-row input[type="number"][readonly]::-webkit-inner-spin-button,
+.lock-pick-row input[type="number"][readonly]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.lock-pick-row input[type="number"][readonly] {
+  -moz-appearance: textfield;
 }
 
 .lock-pick-row input[type="number"]:disabled {
@@ -900,6 +917,10 @@ code {
   align-items: baseline;
   gap: 4px;
   margin-bottom: 10px;
+}
+
+.wheel-countdown[hidden] {
+  display: none !important;
 }
 
 .wheel-countdown-num {
