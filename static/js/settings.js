@@ -17,6 +17,7 @@ const gmNameInput = document.getElementById("gm-name");
 const badPhrasesText = document.getElementById("bad-phrases-text");
 const wildcardGoodTag = document.getElementById("wildcard-good-tag");
 const wildcardTrumpTag = document.getElementById("wildcard-trump-tag");
+const gmCompleteTag = document.getElementById("gm-complete-tag");
 const btnSaveRoom = document.getElementById("btn-save-room");
 const btnReloadRoom = document.getElementById("btn-reload-room");
 const saveMsgRoom = document.getElementById("save-msg-room");
@@ -176,6 +177,7 @@ async function loadRoomSettings() {
   }
   if (wildcardGoodTag) wildcardGoodTag.value = data.wildcard_free_good_tag || "";
   if (wildcardTrumpTag) wildcardTrumpTag.value = data.wildcard_trump_tag || "";
+  if (gmCompleteTag) gmCompleteTag.value = data.gamemaster_complete_tag || "";
 }
 
 if (btnSaveRoom) {
@@ -194,6 +196,7 @@ if (btnSaveRoom) {
         bad_scan_phrases: phrases,
         wildcard_free_good_tag: (wildcardGoodTag?.value || "").trim() || null,
         wildcard_trump_tag: (wildcardTrumpTag?.value || "").trim() || null,
+        gamemaster_complete_tag: (gmCompleteTag?.value || "").trim() || null,
       });
       setSaveMsg(saveMsgRoom, "Room settings saved.", true);
     } catch (e) {

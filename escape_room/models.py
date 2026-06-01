@@ -184,8 +184,22 @@ class GameSnapshot(BaseModel):
         default=None,
         description="trump or complete — which countdown is active.",
     )
-    wildcard_free_good_used: bool = Field(default=False)
-    wildcard_trump_used: bool = Field(default=False)
+    wildcard_free_good_used: bool = Field(
+        default=False,
+        description="True while reward badge is on cooldown.",
+    )
+    wildcard_trump_used: bool = Field(
+        default=False,
+        description="True while skip badge is on cooldown.",
+    )
+    wildcard_free_good_cooldown_seconds: int = Field(
+        default=0,
+        description="Reward badge cooldown remaining in seconds.",
+    )
+    wildcard_skip_cooldown_seconds: int = Field(
+        default=0,
+        description="Skip badge cooldown remaining in seconds.",
+    )
     rfids_per_punishment: int = Field(
         default=DEFAULT_RFIDS_PER_PUNISHMENT,
         description="Deadline mode: RFID scans required after each timer punishment.",

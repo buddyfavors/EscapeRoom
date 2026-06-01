@@ -31,7 +31,11 @@ class RoomSettings(BaseModel):
     )
     wildcard_trump_tag: str | None = Field(
         default=None,
-        description="10-digit RFID badge — skip the next punishment once per game.",
+        description="10-digit RFID badge — skip current punishment while punishment window is open.",
+    )
+    gamemaster_complete_tag: str | None = Field(
+        default=None,
+        description="10-digit RFID badge — completes pending punishment or triggers immediate punishment.",
     )
 
     @field_validator("gamemaster_name", mode="before")
@@ -50,7 +54,7 @@ class RoomSettings(BaseModel):
         out = [str(x).strip() for x in v if str(x).strip()]
         return out or list(DEFAULT_BAD_SCAN_PHRASES)
 
-    @field_validator("wildcard_free_good_tag", "wildcard_trump_tag", mode="before")
+    @field_validator("wildcard_free_good_tag", "wildcard_trump_tag", "gamemaster_complete_tag", mode="before")
     @classmethod
     def _normalize_wildcard(cls, v):  # noqa: ANN001
         if v is None or str(v).strip() == "":

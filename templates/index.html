@@ -42,17 +42,71 @@
         <p class="muted lock-picks-hint">How many of each lock type do you want to play with? Pick at least one lock total.</p>
         <div class="lock-pick-row">
           <label for="lock-digit3">3-digit locks</label>
-          <input id="lock-digit3" type="number" min="0" max="{{ avail.digit3 }}" value="{{ [defs.digit3, avail.digit3]|min }}"{% if avail.digit3 == 0 %} disabled{% endif %} />
+          <button
+            type="button"
+            class="lock-step-btn"
+            data-lock-kind="digit3"
+            data-delta="-1"
+            id="lock-digit3-minus"
+            aria-label="Decrease 3-digit locks"
+            {% if avail.digit3 == 0 %}disabled{% endif %}
+          >-</button>
+          <input id="lock-digit3" class="lock-count-input" type="number" min="0" max="{{ avail.digit3 }}" value="{{ [defs.digit3, avail.digit3]|min }}"{% if avail.digit3 == 0 %} disabled{% endif %} readonly />
+          <button
+            type="button"
+            class="lock-step-btn"
+            data-lock-kind="digit3"
+            data-delta="1"
+            id="lock-digit3-plus"
+            aria-label="Increase 3-digit locks"
+            {% if avail.digit3 == 0 %}disabled{% endif %}
+          >+</button>
           <span id="avail-digit3" class="muted">{% if avail.digit3 == 0 %}none available{% elif avail.digit3 == 1 %}max 1{% else %}max {{ avail.digit3 }}{% endif %}</span>
         </div>
         <div class="lock-pick-row">
           <label for="lock-letter5">5-letter locks</label>
-          <input id="lock-letter5" type="number" min="0" max="{{ avail.letter5 }}" value="{{ [defs.letter5, avail.letter5]|min }}"{% if avail.letter5 == 0 %} disabled{% endif %} />
+          <button
+            type="button"
+            class="lock-step-btn"
+            data-lock-kind="letter5"
+            data-delta="-1"
+            id="lock-letter5-minus"
+            aria-label="Decrease 5-letter locks"
+            {% if avail.letter5 == 0 %}disabled{% endif %}
+          >-</button>
+          <input id="lock-letter5" class="lock-count-input" type="number" min="0" max="{{ avail.letter5 }}" value="{{ [defs.letter5, avail.letter5]|min }}"{% if avail.letter5 == 0 %} disabled{% endif %} readonly />
+          <button
+            type="button"
+            class="lock-step-btn"
+            data-lock-kind="letter5"
+            data-delta="1"
+            id="lock-letter5-plus"
+            aria-label="Increase 5-letter locks"
+            {% if avail.letter5 == 0 %}disabled{% endif %}
+          >+</button>
           <span id="avail-letter5" class="muted">{% if avail.letter5 == 0 %}none available{% elif avail.letter5 == 1 %}max 1{% else %}max {{ avail.letter5 }}{% endif %}</span>
         </div>
         <div class="lock-pick-row">
           <label for="lock-digit4">4-digit lockboxes</label>
-          <input id="lock-digit4" type="number" min="0" max="{{ avail.digit4 }}" value="{{ [defs.digit4, avail.digit4]|min }}"{% if avail.digit4 == 0 %} disabled{% endif %} />
+          <button
+            type="button"
+            class="lock-step-btn"
+            data-lock-kind="digit4"
+            data-delta="-1"
+            id="lock-digit4-minus"
+            aria-label="Decrease 4-digit lockboxes"
+            {% if avail.digit4 == 0 %}disabled{% endif %}
+          >-</button>
+          <input id="lock-digit4" class="lock-count-input" type="number" min="0" max="{{ avail.digit4 }}" value="{{ [defs.digit4, avail.digit4]|min }}"{% if avail.digit4 == 0 %} disabled{% endif %} readonly />
+          <button
+            type="button"
+            class="lock-step-btn"
+            data-lock-kind="digit4"
+            data-delta="1"
+            id="lock-digit4-plus"
+            aria-label="Increase 4-digit lockboxes"
+            {% if avail.digit4 == 0 %}disabled{% endif %}
+          >+</button>
           <span id="avail-digit4" class="muted">{% if avail.digit4 == 0 %}none available{% elif avail.digit4 == 1 %}max 1{% else %}max {{ avail.digit4 }}{% endif %}</span>
         </div>
       </fieldset>
@@ -238,17 +292,17 @@
         <p class="wheel-modal-kicker" id="wheel-result-kicker">Your punishment</p>
         <h2 id="wheel-punishment-label" class="wheel-punishment-label"></h2>
         <p id="wheel-punishment-text" class="wheel-punishment-text"></p>
-        <div class="wheel-countdown">
+        <div class="wheel-countdown" hidden>
           <span id="wheel-countdown-num" class="wheel-countdown-num">60</span>
           <span class="wheel-countdown-unit">s</span>
         </div>
         <p id="wheel-countdown-hint" class="muted wheel-countdown-hint">
-          Scan your trump skip badge before time runs out!
+          Scan your skip badge to skip, or scan the Gamemaster complete badge when done.
         </p>
       </div>
     </div>
   </div>
 
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=20"></script>
+  <script src="/static/js/app.js?v=26"></script>
 {% endblock %}

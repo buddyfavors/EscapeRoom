@@ -64,6 +64,7 @@ FORCED_MINIGAME_IDS: tuple[str, ...] = (
 )
 
 BAD_CODE_STREAK_TRIGGER = 3
+WILDCARD_COOLDOWN_SEC = 60
 
 DEADLINE_GOOD_LINES: tuple[str, ...] = (
     "Clean scan — the clock keeps ticking.",
@@ -225,6 +226,9 @@ class GameEngine:
         self._spent_tags: set[str] = set()
         self._bad_codes_streak: int = 0
         self._good_rfid_since_minigame: int = 0
+        # Breakout UX: first good scan chooses a random lock; subsequent good scans
+        # keep revealing that same lock until it is fully revealed.
+        self._breakout_lock_in_progress_id: str | None = None
         self._listeners: list[Callable[[dict], None]] = []
         self._pending_slots: list[LockSlot] | None = None
         self._pending_counts: LockCounts | None = None
@@ -251,8 +255,8 @@ class GameEngine:
         self._deadline_cycle: int = 1
         self._final_countdown_enabled: bool = False
         self._final_countdown_start_after: int = DEFAULT_FINAL_COUNTDOWN_START_AFTER
-        self._wildcard_free_good_used: bool = False
-        self._wildcard_trump_used: bool = False
+        self._wildcard_free_good_ready_at: datetime | None = None
+        self._wildcard_skip_ready_at: datetime | None = None
         self._punishment_resolution: PunishmentResolution = PunishmentResolution.none
         self._punishment_timer_deadline: datetime | None = None
         self._punishment_timer_handle: threading.Timer | None = None
@@ -279,6 +283,12 @@ class GameEngine:
 
     def _pick_good_line(self, lines: tuple[str, ...], rng: random.Random) -> str:
         return self._format_msg(rng.choice(lines))
+
+    def _cooldown_remaining_seconds(self, ready_at: datetime | None) -> int:
+        if ready_at is None:
+            return 0
+        remaining = int((ready_at - datetime.now(tz=timezone.utc)).total_seconds())
+        return max(0, remaining)
 
     def set_pools(self, pools: CodePools) -> None:
         with self._lock:
@@ -346,6 +356,12 @@ class GameEngine:
             gm_won = self._gm_won
             game_over = won or gm_won
             timer_remaining = self._timer_seconds_remaining_locked()
+            reward_cooldown_remaining = self._cooldown_remaining_seconds(
+                self._wildcard_free_good_ready_at
+            )
+            skip_cooldown_remaining = self._cooldown_remaining_seconds(
+                self._wildcard_skip_ready_at
+            )
             return GameSnapshot(
                 game_mode=mode,
                 phase=self._phase,
@@ -378,8 +394,10 @@ class GameEngine:
                 ),
                 punishment_timer_seconds_remaining=self._punishment_timer_seconds_remaining_locked(),
                 punishment_timer_kind=self._punishment_timer_kind,
-                wildcard_free_good_used=self._wildcard_free_good_used,
-                wildcard_trump_used=self._wildcard_trump_used,
+                wildcard_free_good_used=reward_cooldown_remaining > 0,
+                wildcard_trump_used=skip_cooldown_remaining > 0,
+                wildcard_free_good_cooldown_seconds=reward_cooldown_remaining,
+                wildcard_skip_cooldown_seconds=skip_cooldown_remaining,
                 rfids_per_punishment=self._rfids_per_punishment,
                 rfids_collected=self._rfids_collected,
                 bounty_theme=self._bounty_theme,
@@ -460,6 +478,7 @@ class GameEngine:
             self._spent_tags.clear()
             self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
+            self._breakout_lock_in_progress_id = None
             if game_mode is GameMode.breakout:
                 limit = int(punishment_limit)
                 if limit <= 0:
@@ -480,8 +499,8 @@ class GameEngine:
             self._good_codes_progress = 0
             self._rewards_earned = 0
             self._rewards_to_win = max(1, min(99, int(rewards_to_win)))
-            self._wildcard_free_good_used = False
-            self._wildcard_trump_used = False
+            self._wildcard_free_good_ready_at = None
+            self._wildcard_skip_ready_at = None
             self._clear_punishment_resolution_locked()
             self._deadline_cycle = 1
             self._final_countdown_enabled = bool(final_countdown_enabled)
@@ -508,6 +527,7 @@ class GameEngine:
             self._spent_tags.clear()
             self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
+            self._breakout_lock_in_progress_id = None
             self._pending_slots = None
             self._pending_counts = None
             self._punishments_received = 0
@@ -520,8 +540,8 @@ class GameEngine:
             self._good_codes_progress = 0
             self._rewards_earned = 0
             self._bounty_theme = None
-            self._wildcard_free_good_used = False
-            self._wildcard_trump_used = False
+            self._wildcard_free_good_ready_at = None
+            self._wildcard_skip_ready_at = None
             self._clear_punishment_resolution_locked()
             self._deadline_cycle = 1
         self._emit({"type": "game_stopped"})
@@ -689,59 +709,18 @@ class GameEngine:
         self._pending_punishment = None
 
     def _schedule_punishment_timer_locked(self) -> None:
+        # Punishments no longer auto-transition or auto-complete on timers.
         self._cancel_punishment_timer_locked()
-        if self._punishment_resolution is PunishmentResolution.none:
-            return
-        if self._punishment_timer_deadline is None or self._gm_won:
-            return
-        delay = (
-            self._punishment_timer_deadline - datetime.now(tz=timezone.utc)
-        ).total_seconds()
-        if delay <= 0:
-            delay = 0.0
-        else:
-            delay = min(delay, 1.0)
-        self._punishment_timer_handle = threading.Timer(delay, self._punishment_timer_callback)
-        self._punishment_timer_handle.daemon = True
-        self._punishment_timer_handle.start()
 
     def _start_punishment_countdown_locked(self, kind: str, seconds: int) -> None:
-        self._punishment_timer_kind = kind
-        self._punishment_timer_deadline = datetime.now(tz=timezone.utc) + timedelta(
-            seconds=seconds
-        )
+        # Retained for backward compatibility; punishment window is now open-ended.
+        self._punishment_timer_kind = None
+        self._punishment_timer_deadline = None
         self._schedule_punishment_timer_locked()
 
     def _punishment_timer_callback(self) -> None:
-        phase_event: dict | None = None
-        apply_event: dict | None = None
-        with self._lock:
-            if self._punishment_resolution is PunishmentResolution.none:
-                return
-            now = datetime.now(tz=timezone.utc)
-            if self._punishment_timer_deadline and now < self._punishment_timer_deadline:
-                self._schedule_punishment_timer_locked()
-                return
-
-            if self._punishment_resolution is PunishmentResolution.trump_window:
-                self._punishment_resolution = PunishmentResolution.completing
-                self._start_punishment_countdown_locked("complete", PUNISHMENT_COMPLETE_SEC)
-                snap = self.snapshot()
-                phase_event = {
-                    "type": "punishment_phase",
-                    "phase": "completing",
-                    "snapshot": snap.model_dump(mode="json") if snap else None,
-                }
-            elif self._punishment_resolution is PunishmentResolution.completing:
-                apply_event = self._apply_pending_punishment_locked()
-                snap = self.snapshot()
-                if apply_event is not None:
-                    apply_event["snapshot"] = snap.model_dump(mode="json") if snap else None
-
-        if phase_event is not None:
-            self._emit(phase_event)
-        if apply_event is not None:
-            self._emit(apply_event)
+        # Punishments no longer use countdown callbacks.
+        return
 
     def _wheel_display_entries_locked(self) -> list[str]:
         labels: list[str] = []
@@ -756,7 +735,7 @@ class GameEngine:
         return labels
 
     def _begin_punishment_resolution_locked(self, *, reason: str) -> dict:
-        """Pick a wheel entry and open the trump skip window."""
+        """Pick a wheel entry and open the punishment window."""
         rng = random.Random()
         entry = self._pick_wheel_entry(rng)
         display_entries = self._wheel_display_entries_locked()
@@ -803,7 +782,9 @@ class GameEngine:
 
         self._pending_punishment = pending
         self._punishment_resolution = PunishmentResolution.trump_window
-        self._start_punishment_countdown_locked("trump", TRUMP_WINDOW_SEC)
+        self._punishment_timer_kind = None
+        self._punishment_timer_deadline = None
+        self._schedule_punishment_timer_locked()
 
         if self._game_mode is GameMode.deadline:
             self._phase = GamePhase.punishment
@@ -882,20 +863,25 @@ class GameEngine:
         ws = self._room_settings
         if not ws.wildcard_trump_tag or tag != ws.wildcard_trump_tag:
             return None
-        if self._wildcard_trump_used:
-            return CodeAttemptResult(
-                ok=False,
-                message="Trump card already used this game.",
-                interaction="rfid_spent",
-            )
-        self._wildcard_trump_used = True
-        self._spent_tags.add(tag)
+        self._wildcard_skip_ready_at = None
         self._skip_pending_punishment_with_trump_locked()
         return CodeAttemptResult(
             ok=True,
-            message=self._format_msg("Trump card scanned — punishment skipped!"),
+            message=self._format_msg("Skip badge scanned — punishment skipped!"),
             interaction="wildcard_trump",
         )
+
+    def _try_gamemaster_complete_locked(self, tag: str) -> dict | None:
+        if self._punishment_resolution is not PunishmentResolution.trump_window:
+            return None
+        ws = self._room_settings
+        if not ws.gamemaster_complete_tag or tag != ws.gamemaster_complete_tag:
+            return None
+        apply_event = self._apply_pending_punishment_locked()
+        snap = self.snapshot()
+        if apply_event is not None:
+            apply_event["snapshot"] = snap.model_dump(mode="json") if snap else None
+        return apply_event
 
     def _apply_deadline_time_penalty_locked(self) -> str:
         if self._timer_deadline is None:
@@ -998,17 +984,19 @@ class GameEngine:
     def _try_wildcard_scan_locked(self, tag: str, rng: random.Random) -> CodeAttemptResult | None:
         ws = self._room_settings
         if ws.wildcard_free_good_tag and tag == ws.wildcard_free_good_tag:
-            if self._wildcard_free_good_used:
+            cooldown = self._cooldown_remaining_seconds(self._wildcard_free_good_ready_at)
+            if cooldown > 0:
                 return CodeAttemptResult(
                     ok=False,
-                    message="That wildcard badge is already spent this game.",
+                    message=f"Reward badge cooling down — try again in {cooldown}s.",
                     interaction="rfid_spent",
                 )
-            self._wildcard_free_good_used = True
-            self._spent_tags.add(tag)
+            self._wildcard_free_good_ready_at = datetime.now(tz=timezone.utc) + timedelta(
+                seconds=WILDCARD_COOLDOWN_SEC
+            )
             return self._force_good_rfid_locked(
                 rng,
-                prefix="Wildcard badge — guaranteed good scan!",
+                prefix="Reward badge — guaranteed good scan!",
             )
         return None
 
@@ -1018,12 +1006,7 @@ class GameEngine:
         difficulty: Difficulty,
         rng: random.Random,
     ) -> CodeAttemptResult:
-        slot = _pick_lock_for_reveal(
-            slots,
-            kind_ok=lambda _k: True,
-            difficulty=difficulty,
-            rng=rng,
-        )
+        slot = self._pick_lock_for_breakout_in_progress(slots, rng)
         if slot is None:
             return CodeAttemptResult(
                 ok=True,
@@ -1038,6 +1021,8 @@ class GameEngine:
                 interaction="rfid_exhausted",
             )
         idx, char = applied
+        if all(x is not None for x in slot.revealed):
+            self._breakout_lock_in_progress_id = None
         label = "letter" if slot.kind == "letter5" else "number"
         return CodeAttemptResult(
             ok=True,
@@ -1118,6 +1103,29 @@ class GameEngine:
                 return f"/minigames/{slug}?forced=1&reason=three_clues"
         return None
 
+    def _pick_lock_for_breakout_in_progress(self, slots: list[LockSlot], rng: random.Random) -> LockSlot | None:
+        """Breakout: reveal one random lock at a time.
+
+        The first good scan chooses a random eligible lock. Further good scans
+        keep targeting that same lock until all clue positions are revealed.
+        """
+        candidates = [
+            s
+            for s in slots
+            if not s.solved and any(x is None for x in s.revealed)
+        ]
+        if not candidates:
+            return None
+
+        if self._breakout_lock_in_progress_id:
+            for s in candidates:
+                if s.id == self._breakout_lock_in_progress_id:
+                    return s
+
+        chosen = rng.choice(candidates)
+        self._breakout_lock_in_progress_id = chosen.id
+        return chosen
+
     def _submit_rfid(self, tag: str) -> CodeAttemptResult:
         bonus_minigame_url: str | None = None
         punishment_wheel_event: dict | None = None
@@ -1156,14 +1164,6 @@ class GameEngine:
             rng = random.Random()
 
             if self._punishment_resolution is PunishmentResolution.trump_window:
-                if tag in self._spent_tags:
-                    result = CodeAttemptResult(
-                        ok=False,
-                        message="Already scanned — that tag is spent for this run.",
-                        interaction="rfid_spent",
-                    )
-                    self._emit_code_result(result)
-                    return result
                 trump = self._try_trump_skip_locked(tag)
                 if trump is not None:
                     result = trump
@@ -1174,18 +1174,27 @@ class GameEngine:
                         "snapshot": snap.model_dump(mode="json") if (snap := self.snapshot()) else None,
                     }
                     return result
+                completed = self._try_gamemaster_complete_locked(tag)
+                if completed is not None:
+                    self._emit(completed)
+                    result = CodeAttemptResult(
+                        ok=True,
+                        message="Punishment marked complete.",
+                        interaction="rfid_good",
+                    )
+                    self._emit_code_result(result)
+                    return result
+                if tag in self._spent_tags:
+                    result = CodeAttemptResult(
+                        ok=False,
+                        message="Already scanned — that tag is spent for this run.",
+                        interaction="rfid_spent",
+                    )
+                    self._emit_code_result(result)
+                    return result
                 result = CodeAttemptResult(
                     ok=False,
-                    message="Trump window open — scan your skip badge now!",
-                    interaction="rfid_punishment",
-                )
-                self._emit_code_result(result)
-                return result
-
-            if self._punishment_resolution is PunishmentResolution.completing:
-                result = CodeAttemptResult(
-                    ok=False,
-                    message="Complete your punishment — timer running.",
+                    message="Punishment pending — scan your skip badge or Gamemaster complete badge.",
                     interaction="rfid_punishment",
                 )
                 self._emit_code_result(result)
@@ -1215,6 +1224,38 @@ class GameEngine:
             difficulty = self._difficulty
             mode = self._game_mode
             assert difficulty is not None
+            ws = self._room_settings
+
+            # Gamemaster badge behavior:
+            # - if punishment pending: mark it complete.
+            # - otherwise: trigger an immediate punishment and reset bad-code streak.
+            if ws.gamemaster_complete_tag and tag == ws.gamemaster_complete_tag:
+                completed = self._try_gamemaster_complete_locked(tag)
+                if completed is not None:
+                    self._emit(completed)
+                    result = CodeAttemptResult(
+                        ok=True,
+                        message="Punishment marked complete.",
+                        interaction="rfid_good",
+                    )
+                    self._emit_code_result(result)
+                    return result
+                if self._game_is_playable():
+                    self._bad_codes_streak = 0
+                    punishment_wheel_event = self._spin_punishment_wheel()
+                    result = CodeAttemptResult(
+                        ok=False,
+                        message="Gamemaster badge scanned — immediate punishment triggered.",
+                        interaction="rfid_punishment",
+                    )
+                    self._emit_code_result(result)
+                    if punishment_wheel_event is not None:
+                        snap = self.snapshot()
+                        punishment_wheel_event["snapshot"] = (
+                            snap.model_dump(mode="json") if snap else None
+                        )
+                        self._emit(punishment_wheel_event)
+                    return result
 
             wildcard = self._try_wildcard_scan_locked(tag, rng)
             if wildcard is not None:
@@ -1232,11 +1273,16 @@ class GameEngine:
                 self._emit_code_result(result)
                 return result
             elif not self._rfid.has(tag):
-                ws = self._room_settings
                 if ws.wildcard_trump_tag and tag == ws.wildcard_trump_tag:
                     result = CodeAttemptResult(
                         ok=False,
-                        message="Trump card only works during the skip window after the wheel lands.",
+                        message="Skip badge only works while a punishment is pending.",
+                        interaction="rfid_unknown",
+                    )
+                elif ws.gamemaster_complete_tag and tag == ws.gamemaster_complete_tag:
+                    result = CodeAttemptResult(
+                        ok=False,
+                        message="Gamemaster complete badge only works while a punishment is pending.",
                         interaction="rfid_unknown",
                     )
                 else:
@@ -1388,12 +1434,7 @@ class GameEngine:
                 interaction="rfid_punishment",
             )
 
-        slot = _pick_lock_for_reveal(
-            slots,
-            kind_ok=lambda _k: True,
-            difficulty=difficulty,
-            rng=rng,
-        )
+        slot = self._pick_lock_for_breakout_in_progress(slots, rng)
         if slot is None:
             return CodeAttemptResult(
                 ok=True,
@@ -1410,6 +1451,8 @@ class GameEngine:
             )
 
         idx, char = applied
+        if all(x is not None for x in slot.revealed):
+            self._breakout_lock_in_progress_id = None
         label = "letter" if slot.kind == "letter5" else "number"
         return CodeAttemptResult(
             ok=True,

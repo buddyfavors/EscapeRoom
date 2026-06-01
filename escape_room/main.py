@@ -84,6 +84,7 @@ class RoomSettingsBody(BaseModel):
     bad_scan_phrases: list[str] = Field(min_length=1)
     wildcard_free_good_tag: str | None = None
     wildcard_trump_tag: str | None = None
+    gamemaster_complete_tag: str | None = None
 
 
 class GameStartBody(BaseModel):
@@ -185,6 +186,8 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         "punishment_timer_kind": snap.punishment_timer_kind,
         "wildcard_free_good_used": snap.wildcard_free_good_used,
         "wildcard_trump_used": snap.wildcard_trump_used,
+        "wildcard_free_good_cooldown_seconds": snap.wildcard_free_good_cooldown_seconds,
+        "wildcard_skip_cooldown_seconds": snap.wildcard_skip_cooldown_seconds,
         "rfids_per_punishment": snap.rfids_per_punishment,
         "rfids_collected": snap.rfids_collected,
         "bounty_theme": snap.bounty_theme.value if snap.bounty_theme else None,
