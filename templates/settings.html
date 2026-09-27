@@ -43,9 +43,12 @@
     <h2>Room copy &amp; wildcard badges</h2>
     <p class="lede">
       Customize the <strong>Gamemaster</strong> name shown in messages. Bad-scan phrases use
-      <code>{gm}</code> as a placeholder. Configure two special 10-digit RFID badges: one forces a
-      good scan toward rewards, one for the skip badge (scan while a punishment is pending).
-      The reward badge has a 60-second cooldown. You can also configure a Gamemaster badge.
+      <code>{gm}</code> as a placeholder. Configure two special 10-digit RFID badges: one for the
+      reward badge, one for the skip badge (scan while a punishment is pending).
+      In <strong>Breakout</strong> and <strong>Deadline</strong>, the reward badge grants one guaranteed
+      good scan (60-second cooldown). In <strong>Bounty</strong>, it starts a batch — the Gamemaster
+      hands out the configured number of RFIDs for normal good/bad scanning. You can also configure a
+      Gamemaster badge.
     </p>
     <label for="gm-name" class="label">Gamemaster name</label>
     <input id="gm-name" type="text" class="text-input" maxlength="40" placeholder="Gamemaster" />
@@ -54,7 +57,7 @@
     <textarea id="bad-phrases-text" class="codes" spellcheck="false" placeholder="Bad scan — {gm} laughs."></textarea>
 
     <div class="punishment-limit-row">
-      <label for="wildcard-good-tag">Reward badge — guaranteed good scan</label>
+      <label for="wildcard-good-tag">Reward badge — good scan (Breakout/Deadline) or RFID batch (Bounty)</label>
       <input id="wildcard-good-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
     <div class="punishment-limit-row">
@@ -124,7 +127,7 @@
       </li>
       <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
-      <li><strong>Breakout</strong> — locks + wheel on every 3rd bad code. <strong>Deadline</strong> — timer punishments + 30s time shave on bad codes. <strong>Bounty</strong> — rewards from good scans, no locks.</li>
+      <li><strong>Breakout</strong> — locks + wheel on every 3rd bad code. <strong>Deadline</strong> — timer punishments + 30s time shave on bad codes. <strong>Bounty</strong> — reward badge grants RFID batches; good scans earn rewards, no locks.</li>
       <li>RFID: 45% good / 55% bad base on every tier. Easy +7%, Medium +11%, Hard +14% PRD per good scan (cap 92% bad).</li>
       {% if minigames_enabled %}
         <li>After every <strong>three</strong> good RFID rolls (bad punishment rolls do not count), a minigame is forced.</li>

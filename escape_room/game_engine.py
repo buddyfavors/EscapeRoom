@@ -676,6 +676,10 @@ class GameEngine:
         self._cancel_timer_locked()
         self._timer_deadline = None
 
+    def _begin_bounty_collection_phase_locked(self) -> None:
+        self._phase = GamePhase.collection
+        self._rfids_collected = 0
+
     def _maybe_finish_collection_locked(self) -> bool:
         if self._rfids_collected < self._rfids_per_punishment:
             return False
@@ -683,6 +687,13 @@ class GameEngine:
         self._rfids_collected = 0
         self._deadline_cycle += 1
         self._start_timer_locked()
+        return True
+
+    def _maybe_finish_bounty_collection_locked(self) -> bool:
+        if self._rfids_collected < self._rfids_per_punishment:
+            return False
+        self._phase = GamePhase.playing
+        self._rfids_collected = 0
         return True
 
     def _punishment_timer_seconds_remaining_locked(self) -> int | None:
@@ -984,6 +995,23 @@ class GameEngine:
     def _try_wildcard_scan_locked(self, tag: str, rng: random.Random) -> CodeAttemptResult | None:
         ws = self._room_settings
         if ws.wildcard_free_good_tag and tag == ws.wildcard_free_good_tag:
+            if self._game_mode == GameMode.bounty:
+                if self._phase is GamePhase.collection:
+                    return CodeAttemptResult(
+                        ok=False,
+                        message="Finish scanning the RFIDs the Gamemaster handed out first.",
+                        interaction="rfid_spent",
+                    )
+                need = self._rfids_per_punishment
+                self._begin_bounty_collection_phase_locked()
+                return CodeAttemptResult(
+                    ok=True,
+                    message=self._format_msg(
+                        f"Reward badge scanned — {{gm}}, hand out {need} RFID"
+                        f"{'' if need == 1 else 's'}!"
+                    ),
+                    interaction="reward_badge",
+                )
             cooldown = self._cooldown_remaining_seconds(self._wildcard_free_good_ready_at)
             if cooldown > 0:
                 return CodeAttemptResult(
@@ -1264,6 +1292,8 @@ class GameEngine:
                     self._rfid_consecutive_good_scans += 1
                     bonus_minigame_url = self._maybe_bonus_minigame_after_good_locked(rng)
                 self._emit_code_result(result)
+                if mode == GameMode.bounty and self._phase is GamePhase.collection:
+                    phase_event = {"type": "bounty_collection_started"}
             elif tag in self._spent_tags:
                 result = CodeAttemptResult(
                     ok=False,
@@ -1293,6 +1323,16 @@ class GameEngine:
                     )
                 self._emit_code_result(result)
                 return result
+            elif mode is GameMode.bounty and self._phase is GamePhase.playing:
+                result = CodeAttemptResult(
+                    ok=False,
+                    message=self._format_msg(
+                        "Scan the reward badge first — {gm} will hand you RFIDs to scan."
+                    ),
+                    interaction="rfid_punishment",
+                )
+                self._emit_code_result(result)
+                return result
             elif mode is GameMode.deadline and self._phase is GamePhase.collection:
                 self._spent_tags.add(tag)
                 self._rfids_collected += 1
@@ -1309,13 +1349,38 @@ class GameEngine:
                     interaction="rfid_collect",
                 )
                 self._emit_code_result(result)
+            elif mode is GameMode.bounty and self._phase is GamePhase.collection:
+                result = self._roll_bounty_rfid_outcome(difficulty, rng)
+                self._spent_tags.add(tag)
+
+                if result.interaction == "rfid_punishment":
+                    self._rfid_consecutive_good_scans = 0
+                    self._bad_codes_streak += 1
+                    tail, wheel = self._apply_bounty_bad_streak_locked()
+                    if wheel is not None:
+                        punishment_wheel_event = wheel
+                        tail = " The wheel of punishments has spoken."
+                    result = result.model_copy(update={"message": result.message + tail})
+                elif result.interaction == "rfid_good":
+                    self._rfid_consecutive_good_scans += 1
+                    bonus_minigame_url = self._maybe_bonus_minigame_after_good_locked(rng)
+
+                self._rfids_collected += 1
+                need = self._rfids_per_punishment
+                got = self._rfids_collected
+                finished = self._maybe_finish_bounty_collection_locked()
+                progress = f" ({got}/{need} RFIDs scanned.)"
+                msg = result.message + progress
+                if finished:
+                    msg += " All RFIDs scanned — scan the reward badge for the next batch!"
+                    phase_event = {"type": "bounty_collection_complete"}
+                result = result.model_copy(update={"message": msg})
+                self._emit_code_result(result)
             else:
                 slots = self._active
                 assert slots is not None
 
-                if mode is GameMode.bounty:
-                    result = self._roll_bounty_rfid_outcome(difficulty, rng)
-                elif mode is GameMode.deadline:
+                if mode is GameMode.deadline:
                     result = self._roll_deadline_rfid_outcome(difficulty, rng)
                 else:
                     result = self._roll_rfid_outcome(slots, difficulty, rng)
@@ -1327,11 +1392,6 @@ class GameEngine:
                     self._bad_codes_streak += 1
                     if mode is GameMode.deadline:
                         tail = self._apply_deadline_time_penalty_locked()
-                    elif mode is GameMode.bounty:
-                        tail, wheel = self._apply_bounty_bad_streak_locked()
-                        if wheel is not None:
-                            punishment_wheel_event = wheel
-                            tail = " The wheel of punishments has spoken."
                     else:
                         triggered = self._bad_codes_wheel_triggered()
                         if triggered:

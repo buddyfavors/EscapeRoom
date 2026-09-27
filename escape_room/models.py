@@ -327,6 +327,7 @@ class CodeAttemptResult(BaseModel):
         "rfid_good",
         "wildcard_good",
         "wildcard_trump",
+        "reward_badge",
     ] = "lock"
     reveal: dict[str, Any] | None = Field(
         default=None,
