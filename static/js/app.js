@@ -36,6 +36,7 @@ const modeDeadlineSettings = document.getElementById("mode-deadline-settings");
 const modeBountySettings = document.getElementById("mode-bounty-settings");
 const timerMinutesInput = document.getElementById("timer-minutes");
 const rfidsPerPunishmentInput = document.getElementById("rfids-per-punishment");
+const rfidsPerBountyBatchInput = document.getElementById("rfids-per-bounty-batch");
 const goodCodesPerRewardInput = document.getElementById("good-codes-per-reward");
 const rewardsToWinInput = document.getElementById("rewards-to-win");
 const finalCountdownEnabledInput = document.getElementById("final-countdown-enabled");
@@ -480,6 +481,9 @@ function applySetup(data, { resetValues = false } = {}) {
   if (rfidsPerPunishmentInput && data.default_rfids_per_punishment != null) {
     rfidsPerPunishmentInput.value = String(data.default_rfids_per_punishment);
   }
+  if (rfidsPerBountyBatchInput && data.default_rfids_per_punishment != null) {
+    rfidsPerBountyBatchInput.value = String(data.default_rfids_per_punishment);
+  }
   if (goodCodesPerRewardInput && data.default_good_codes_per_reward != null) {
     goodCodesPerRewardInput.value = String(data.default_good_codes_per_reward);
   }
@@ -563,7 +567,7 @@ function renderBadCodesMeter(snap) {
 
 function renderPunishmentsMeter(snap) {
   if (!punishmentsPill) return;
-  const show = snap && snap.game_mode === "breakout";
+  const show = !!snap;
   punishmentsPill.hidden = !show;
   if (!show) return;
   const limit = Number(snap.punishments_limit);
@@ -618,7 +622,8 @@ function renderBountyMeters(snap) {
 function renderCollectionMeter(snap) {
   const mode = snap && snap.game_mode;
   const phase = snap && snap.phase;
-  const show = mode === "deadline" && phase === "collection";
+  const show =
+    phase === "collection" && (mode === "deadline" || mode === "bounty");
   if (collectionPill) collectionPill.hidden = !show;
   if (!show) {
     if (collectionCount) collectionCount.textContent = "";
@@ -641,35 +646,54 @@ function renderGmControls(snap) {
     parts.push("Punishment pending — skip badge or Gamemaster complete badge.");
   }
   const rewardCd = Math.max(0, Number(snap.wildcard_free_good_cooldown_seconds) || 0);
-  if (rewardCd > 0) parts.push(`Reward badge cooldown: ${rewardCd}s.`);
+  if (rewardCd > 0 && snap.game_mode !== "bounty") {
+    parts.push(`Reward badge cooldown: ${rewardCd}s.`);
+  }
   gmControls.hidden = parts.length === 0;
   if (gmStatusLine) gmStatusLine.textContent = parts.join(" ");
 }
 
 function renderPhaseBanner(snap) {
   if (!phaseBanner) return;
-  if (!snap || snap.game_mode !== "deadline") {
+  if (!snap) {
     phaseBanner.hidden = true;
     phaseBanner.textContent = "";
     return;
   }
+  const mode = snap.game_mode;
   const phase = snap.phase || "playing";
-  if (phase === "punishment") {
-    phaseBanner.hidden = false;
-    if (snap.punishment_resolution === "trump_window") {
-      phaseBanner.textContent =
-        "Wheel landed — complete the punishment, or use skip badge before Gamemaster marks complete.";
+  if (mode === "deadline") {
+    if (phase === "punishment") {
+      phaseBanner.hidden = false;
+      if (snap.punishment_resolution === "trump_window") {
+        phaseBanner.textContent =
+          "Wheel landed — complete the punishment, or use skip badge before Gamemaster marks complete.";
+      } else {
+        phaseBanner.textContent =
+          "Finish your punishment, then scan your earned RFIDs.";
+      }
+    } else if (phase === "collection") {
+      phaseBanner.hidden = false;
+      phaseBanner.textContent = "Collection phase — scan every RFID the Gamemaster handed out.";
     } else {
-      phaseBanner.textContent =
-        "Finish your punishment, then scan your earned RFIDs.";
+      phaseBanner.hidden = true;
+      phaseBanner.textContent = "";
     }
-  } else if (phase === "collection") {
-    phaseBanner.hidden = false;
-    phaseBanner.textContent = "Collection phase — scan every RFID the Gamemaster handed out.";
-  } else {
-    phaseBanner.hidden = true;
-    phaseBanner.textContent = "";
+    return;
   }
+  if (mode === "bounty" && phase === "collection") {
+    phaseBanner.hidden = false;
+    phaseBanner.textContent =
+      "Scan the RFIDs the Gamemaster handed out — good rolls count toward your next reward.";
+    return;
+  }
+  if (mode === "bounty" && phase === "playing" && !snap.game_over) {
+    phaseBanner.hidden = false;
+    phaseBanner.textContent = "Scan the reward badge to receive your next batch of RFIDs.";
+    return;
+  }
+  phaseBanner.hidden = true;
+  phaseBanner.textContent = "";
 }
 
 function renderMeterHint(snap) {
@@ -684,8 +708,8 @@ function renderMeterHint(snap) {
       "Deadline — survive each countdown. Timer punishments spin the wheel; bad codes shave 30 seconds instead.";
   } else if (mode === "bounty") {
     meterHint.textContent =
-      `Bounty — earn ${snap.good_codes_per_reward || 5} good codes per reward, ` +
-      `${snap.rewards_to_win || 5} rewards to win. ${badCodesHint(snap)}`;
+      `Bounty — scan the reward badge for a batch of RFIDs, then earn ${snap.good_codes_per_reward || 5} ` +
+      `good codes per reward (${snap.rewards_to_win || 5} rewards to win). ${badCodesHint(snap)}`;
   } else {
     meterHint.textContent =
       "Breakout — bad codes never reset; every 3rd bad code spins the wheel (no duplicate punishments).";
@@ -814,7 +838,7 @@ function setBanner(text, tone) {
 function bannerToneForResult(r) {
   const inter = r.interaction || "lock";
   if (inter === "rfid_exhausted") return "";
-  if (inter === "rfid_collect" || inter === "rfid_good") return "ok";
+  if (inter === "rfid_collect" || inter === "rfid_good" || inter === "reward_badge") return "ok";
   return r.ok ? "ok" : "bad";
 }
 
@@ -917,6 +941,7 @@ if (btnPlay) {
         }
       }
       if (mode === "bounty") {
+        payload.rfids_per_punishment = clampInput(rfidsPerBountyBatchInput, 1, 99, 4);
         payload.good_codes_per_reward = clampInput(goodCodesPerRewardInput, 1, 99, 5);
         payload.rewards_to_win = clampInput(rewardsToWinInput, 1, 99, 5);
         payload.bounty_theme = selectedBountyTheme();
@@ -942,6 +967,8 @@ function applyWsMessage(msg) {
     msg.type === "code_result" ||
     msg.type === "timer_expired" ||
     msg.type === "timer_restarted" ||
+    msg.type === "bounty_collection_started" ||
+    msg.type === "bounty_collection_complete" ||
     msg.type === "punishment_complete" ||
     msg.type === "trump_used" ||
     msg.type === "punishment_wheel" ||
@@ -970,6 +997,9 @@ function applyWsMessage(msg) {
     }
     if (msg.type === "timer_restarted") {
       setBanner("All RFIDs scanned — the timer restarts!", "ok");
+    }
+    if (msg.type === "bounty_collection_complete") {
+      setBanner("Batch complete — scan the reward badge for the next batch.", "ok");
     }
     if (msg.type === "trump_used") {
       hideWheelModal();

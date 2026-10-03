@@ -31,7 +31,7 @@
         <input type="radio" name="game_mode" value="bounty" />
         <span class="mode-card-body">
           <strong>Bounty</strong>
-          <span class="muted">No locks — stack good codes into rewards until you hit your goal.</span>
+          <span class="muted">Scan the reward badge for RFID batches — good rolls earn rewards until you hit your goal.</span>
         </span>
       </label>
     </fieldset>
@@ -173,7 +173,11 @@
     <div id="mode-bounty-settings" hidden>
       <fieldset class="bounty-settings">
         <legend>Bounty settings</legend>
-        <p class="muted">Track good RFID rolls toward rewards — no locks in this mode.</p>
+        <p class="muted">Scan the reward badge to receive a batch of RFIDs from the Gamemaster. Good scans in each batch count toward rewards — no locks in this mode.</p>
+        <div class="punishment-limit-row">
+          <label for="rfids-per-bounty-batch">RFIDs per reward badge scan</label>
+          <input id="rfids-per-bounty-batch" type="number" min="1" max="99" value="{{ lock_setup.default_rfids_per_punishment }}" />
+        </div>
         <div class="punishment-limit-row">
           <label for="good-codes-per-reward">Good codes per reward</label>
           <input id="good-codes-per-reward" type="number" min="1" max="99" value="{{ lock_setup.default_good_codes_per_reward }}" />
@@ -231,11 +235,11 @@
           <span id="rewards-count" class="strike-count">0 / 5</span>
         </div>
         <div id="bounty-good-pill" class="strike-pill clue-pill" hidden title="Good RFID rolls toward the next reward">
-          <span class="strike-label">Toward reward</span>
+          <span class="strike-label">Good codes</span>
           <span id="bounty-good-count" class="strike-count">0 / 5</span>
         </div>
-        <div id="collection-pill" class="strike-pill collection-pill" hidden title="Scan all earned RFIDs before the timer restarts">
-          <span class="strike-label">RFIDs to scan</span>
+        <div id="collection-pill" class="strike-pill collection-pill" hidden title="Scan every RFID the Gamemaster handed out">
+          <span class="strike-label">Scans</span>
           <span id="collection-count" class="strike-count">0 / 4</span>
         </div>
         <div
