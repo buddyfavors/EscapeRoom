@@ -5,9 +5,6 @@ const locksSection = document.getElementById("locks-section");
 const btnPlay = document.getElementById("btn-play");
 const overviewView = document.getElementById("overview-view");
 const activeView = document.getElementById("active-view");
-const activeModeLabel = document.getElementById("active-mode-label");
-const activeDifficulty = document.getElementById("active-difficulty");
-const activeSub = document.getElementById("active-sub");
 const phaseBanner = document.getElementById("phase-banner");
 const timerDisplay = document.getElementById("timer-display");
 const wonBadge = document.getElementById("won-badge");
@@ -21,10 +18,8 @@ const clueCount = document.getElementById("clue-count");
 const punishmentsPill = document.getElementById("punishments-pill");
 const punishmentsCount = document.getElementById("punishments-count");
 const gmWonBadge = document.getElementById("gm-won-badge");
-const rfidNextBadEl = document.getElementById("rfid-next-bad");
 const punishmentLimitInput = document.getElementById("punishment-limit");
 const punishmentLimitEnabledInput = document.getElementById("punishment-limit-enabled");
-const meterHint = document.getElementById("meter-hint");
 const rewardsPill = document.getElementById("rewards-pill");
 const rewardsCount = document.getElementById("rewards-count");
 const bountyGoodPill = document.getElementById("bounty-good-pill");
@@ -47,9 +42,6 @@ const wheelModal = document.getElementById("wheel-modal");
 const wheelSpinStage = document.getElementById("wheel-spin-stage");
 const wheelResultStage = document.getElementById("wheel-result-stage");
 const wheelSpinner = document.getElementById("wheel-spinner");
-const wheelSpinLabel = document.getElementById("wheel-spin-label");
-const wheelSpinText = document.getElementById("wheel-spin-text");
-const wheelLastKicker = document.getElementById("wheel-last-kicker");
 const wheelPunishmentLabel = document.getElementById("wheel-punishment-label");
 const wheelPunishmentText = document.getElementById("wheel-punishment-text");
 const wheelCountdownWrap = document.querySelector(".wheel-countdown");
@@ -77,12 +69,6 @@ const availLabels = {
 };
 const gmPreviewEl = document.getElementById("gm-preview");
 
-const MODE_LABELS = {
-  breakout: "Breakout",
-  deadline: "Deadline",
-  bounty: "Bounty",
-};
-
 let setupData = null;
 let previewTimer = null;
 let timerTick = null;
@@ -109,19 +95,6 @@ function normalizeWheelPunishment(punishment) {
   return { label, message };
 }
 
-function punishmentFromPlainText(text) {
-  const line = text != null ? String(text).trim() : "";
-  if (!line) return null;
-  if (line.includes(": ")) {
-    const splitAt = line.indexOf(": ");
-    return {
-      label: line.slice(0, splitAt).trim(),
-      message: line.slice(splitAt + 2).trim(),
-    };
-  }
-  return { label: line, message: "" };
-}
-
 function applyWheelPunishmentDisplay(labelEl, textEl, punishment, { fallbackLabel = "Punishment" } = {}) {
   const { label, message } = normalizeWheelPunishment(punishment);
   const heading = label || message || fallbackLabel;
@@ -135,17 +108,6 @@ function applyWheelPunishmentDisplay(labelEl, textEl, punishment, { fallbackLabe
   }
 }
 
-function setWheelSpinStageDisplay(lastPunishmentText) {
-  const prior = punishmentFromPlainText(lastPunishmentText);
-  const hasPrior = !!(prior && (prior.label || prior.message));
-  if (wheelLastKicker) wheelLastKicker.hidden = !hasPrior;
-  if (hasPrior) {
-    applyWheelPunishmentDisplay(wheelSpinLabel, wheelSpinText, prior);
-  } else {
-    applyWheelPunishmentDisplay(wheelSpinLabel, wheelSpinText, null);
-  }
-}
-
 function hideWheelModal() {
   wheelModalOpen = false;
   if (wheelModal) wheelModal.hidden = true;
@@ -153,7 +115,6 @@ function hideWheelModal() {
     window.clearTimeout(wheelSpinTimer);
     wheelSpinTimer = null;
   }
-  setWheelSpinStageDisplay(null);
   stopPunishmentTimerTick();
 }
 
@@ -225,13 +186,22 @@ function showWheelModal(msg) {
   if (wheelResultStage) wheelResultStage.hidden = true;
   if (wheelCountdownWrap) wheelCountdownWrap.hidden = true;
   if (wheelResultKicker) wheelResultKicker.textContent = "Your punishment";
-  setWheelSpinStageDisplay(msg.snapshot?.last_punishment);
+  if (wheelSpinTimer) {
+    window.clearTimeout(wheelSpinTimer);
+    wheelSpinTimer = null;
+  }
+  if (msg.physical) {
+    if (wheelSpinStage) wheelSpinStage.hidden = true;
+    if (wheelResultStage) wheelResultStage.hidden = false;
+    applyWheelPunishmentDisplay(wheelPunishmentLabel, wheelPunishmentText, msg.punishment);
+    if (msg.snapshot) syncPunishmentTimerFromSnapshot(msg.snapshot);
+    return;
+  }
   if (wheelSpinner) {
     wheelSpinner.classList.remove("spinning");
     void wheelSpinner.offsetWidth;
     wheelSpinner.classList.add("spinning");
   }
-  if (wheelSpinTimer) window.clearTimeout(wheelSpinTimer);
   if (msg.snapshot) syncPunishmentTimerFromSnapshot(msg.snapshot);
   wheelSpinTimer = window.setTimeout(() => {
     wheelSpinTimer = null;
@@ -696,26 +666,6 @@ function renderPhaseBanner(snap) {
   phaseBanner.textContent = "";
 }
 
-function renderMeterHint(snap) {
-  if (!meterHint) return;
-  if (!snap) {
-    meterHint.textContent = "";
-    return;
-  }
-  const mode = snap.game_mode || "breakout";
-  if (mode === "deadline") {
-    meterHint.textContent =
-      "Deadline — survive each countdown. Timer punishments spin the wheel; bad codes shave 30 seconds instead.";
-  } else if (mode === "bounty") {
-    meterHint.textContent =
-      `Bounty — scan the reward badge for a batch of RFIDs, then earn ${snap.good_codes_per_reward || 5} ` +
-      `good codes per reward (${snap.rewards_to_win || 5} rewards to win). ${badCodesHint(snap)}`;
-  } else {
-    meterHint.textContent =
-      "Breakout — bad codes never reset; every 3rd bad code spins the wheel (no duplicate punishments).";
-  }
-}
-
 function setActiveView(snap) {
   const active = !!(snap && snap.started_at_iso);
   if (overviewView) overviewView.hidden = active;
@@ -726,10 +676,6 @@ function setActiveView(snap) {
     if (wonBadge) wonBadge.hidden = true;
     if (bountyWonBadge) bountyWonBadge.hidden = true;
     if (gmWonBadge) gmWonBadge.hidden = true;
-    if (rfidNextBadEl) {
-      rfidNextBadEl.hidden = true;
-      rfidNextBadEl.textContent = "";
-    }
     stopTimerTick();
     renderBadCodesMeter(null);
     renderPunishmentsMeter(null);
@@ -737,7 +683,6 @@ function setActiveView(snap) {
     renderBountyMeters(null);
     renderCollectionMeter(null);
     renderPhaseBanner(null);
-    renderMeterHint(null);
     renderGmControls(null);
     hideWheelModal();
     updateModePanels();
@@ -745,16 +690,6 @@ function setActiveView(snap) {
   }
 
   const mode = snap.game_mode || "breakout";
-  if (activeModeLabel) activeModeLabel.textContent = MODE_LABELS[mode] || "Game";
-  if (activeSub) {
-    if (mode === "deadline") {
-      activeSub.textContent = `Beat the clock — punishments come when time runs out. Outlast ${gmName(snap)}.`;
-    } else if (mode === "bounty") {
-      activeSub.textContent = `Stack good scans into rewards before ${gmName(snap)} breaks your streak.`;
-    } else {
-      activeSub.textContent = `Scan clues, crack the locks, escape before ${gmName(snap)} wins.`;
-    }
-  }
   if (locksSection) locksSection.hidden = mode !== "breakout";
 
   renderBadCodesMeter(snap);
@@ -763,26 +698,10 @@ function setActiveView(snap) {
   renderBountyMeters(snap);
   renderCollectionMeter(snap);
   renderPhaseBanner(snap);
-  renderMeterHint(snap);
   renderGmControls(snap);
   syncWheelModalFromSnapshot(snap);
   syncTimerFromSnapshot(snap);
 
-  if (activeDifficulty) {
-    const d = (snap.difficulty || "medium").toString();
-    activeDifficulty.textContent = `— ${d[0].toUpperCase() + d.slice(1)}`;
-  }
-  if (rfidNextBadEl) {
-    const pct = snap.rfid_bad_chance_percent != null ? snap.rfid_bad_chance_percent : null;
-    const hide = pct == null || snap.game_over || snap.phase === "collection";
-    if (!hide) {
-      rfidNextBadEl.hidden = false;
-      rfidNextBadEl.textContent = `Next badge scan: ${pct}% bad (rises after each good scan).`;
-    } else {
-      rfidNextBadEl.hidden = true;
-      rfidNextBadEl.textContent = "";
-    }
-  }
   if (wonBadge) {
     const escaped = mode === "breakout" && (snap.won === true || snap.won === "true");
     wonBadge.hidden = !escaped;
@@ -977,7 +896,10 @@ function applyWsMessage(msg) {
     if (msg.snapshot) setActiveView(msg.snapshot);
     if (msg.type === "punishment_wheel") {
       showWheelModal(msg);
-      setBanner("The wheel of punishments has spoken!", "bad");
+      setBanner(
+        msg.physical ? "Punishment time — spin the wheel and roll the dice!" : "The wheel of punishments has spoken!",
+        "bad"
+      );
       return;
     }
     if (msg.type === "code_result" && msg.result) {
@@ -1037,9 +959,10 @@ function applyWsMessage(msg) {
   if (msg.type === "punishment_text") {
     if (msg.reason === "punishment_wheel") hideWheelModal();
     if (msg.snapshot) setActiveView(msg.snapshot);
-    const text = msg.gm_won
-      ? msg.game_over_message || "The Gamemaster wins!"
-      : "Punishment: " + (msg.message || "The Gamemaster claims this one.");
+    let text;
+    if (msg.gm_won) text = msg.game_over_message || "The Gamemaster wins!";
+    else if (msg.physical) text = msg.message || "Punishment dealt.";
+    else text = "Punishment: " + (msg.message || "The Gamemaster claims this one.");
     setBanner(text, "bad");
     return;
   }

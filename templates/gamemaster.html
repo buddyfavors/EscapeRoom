@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Gamemaster — Escape Room{% endblock %}
+{% block content %}
+  <section class="panel gm-console-status">
+    <div class="gm-console-head">
+      <h1>
+        <span id="gmc-mode">No game running</span>
+        <span id="gmc-difficulty" class="muted"></span>
+      </h1>
+      <span id="gmc-state" class="gm-console-state idle">Idle</span>
+    </div>
+    <p id="gmc-timer" class="timer-display" hidden></p>
+    <p id="gmc-message" class="gm-console-message" role="status" aria-live="polite" hidden></p>
+    <div id="gmc-stats" class="gm-console-stats"></div>
+  </section>
+
+  <section class="gm-console-buttons">
+    <button id="gmc-bonus" type="button" class="gm-console-btn bonus" data-outcome="roll" disabled>
+      <span class="gm-console-btn-title">Bonus</span>
+      <span class="gm-console-btn-sub">Virtual RFID — normal odds</span>
+    </button>
+    <button id="gmc-reward" type="button" class="gm-console-btn reward" data-outcome="good" disabled>
+      <span class="gm-console-btn-title">Reward</span>
+      <span class="gm-console-btn-sub">Virtual RFID — always good</span>
+    </button>
+    <button id="gmc-punish" type="button" class="gm-console-btn punish" data-outcome="bad" disabled>
+      <span class="gm-console-btn-title">Punishment</span>
+      <span class="gm-console-btn-sub">Virtual RFID — always bad</span>
+    </button>
+  </section>
+  <section class="gm-console-badges">
+    <button type="button" class="gm-console-badge reward" data-badge="reward" disabled>
+      <span class="gm-console-badge-title">Reward badge</span>
+      <span class="gm-console-badge-sub">Same as scanning the reward badge</span>
+    </button>
+    <button type="button" class="gm-console-badge skip" data-badge="skip" disabled>
+      <span class="gm-console-badge-title">Skip punishment</span>
+      <span class="gm-console-badge-sub">Same as the skip badge</span>
+    </button>
+    <button type="button" class="gm-console-badge complete" data-badge="complete" disabled>
+      <span class="gm-console-badge-title">Complete punishment</span>
+      <span class="gm-console-badge-sub">Same as the Gamemaster badge</span>
+    </button>
+  </section>
+
+  <section class="panel secondary">
+    <h2>Activity</h2>
+    <ol id="gmc-log" class="gm-console-log"></ol>
+  </section>
+
+  <script src="/static/js/gamemaster.js?v=6"></script>
+{% endblock %}

@@ -142,11 +142,6 @@ h2 {
   font-size: 0.9rem;
 }
 
-.rfid-next-bad {
-  margin: 6px 0 0;
-  font-size: 0.9rem;
-}
-
 .rfid-tiers-note {
   margin: 0 0 4px;
   font-size: 0.85rem;
@@ -534,12 +529,8 @@ button:disabled {
   font-size: 2.2rem;
 }
 
-.meter-hint {
-  width: 100%;
-  margin: 10px 0 0;
-  font-size: 0.88rem;
-  line-height: 1.45;
-  max-width: 52rem;
+.active-head h1:not(:has(> :not([hidden]))) {
+  display: none;
 }
 
 .progress-pill {
@@ -753,6 +744,11 @@ code {
   gap: 4px;
 }
 
+.physical-wheel-toggle {
+  margin-top: 12px;
+  max-width: 720px;
+}
+
 .timer-display {
   font-size: 2.2rem;
   font-weight: 700;
@@ -894,12 +890,6 @@ code {
   margin: 0 0 8px;
 }
 
-.wheel-last-kicker {
-  margin-top: 12px;
-  font-size: 0.72rem;
-  color: rgba(255, 215, 223, 0.65);
-}
-
 .wheel-punishment-label {
   margin: 0 0 10px;
   font-size: 1.35rem;
@@ -942,4 +932,283 @@ code {
 .wheel-countdown-hint {
   margin: 0;
   font-size: 0.95rem;
+}
+
+/* Gamemaster console */
+
+.gm-console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gm-console-head h1 {
+  margin: 0;
+}
+
+.gm-console-state {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.9rem;
+}
+
+.gm-console-state.ok {
+  color: var(--ok);
+  border-color: rgba(92, 255, 157, 0.5);
+  background: rgba(92, 255, 157, 0.1);
+}
+
+.gm-console-state.bad {
+  color: #ffd7df;
+  border-color: rgba(255, 92, 122, 0.6);
+  background: rgba(255, 92, 122, 0.14);
+}
+
+.gm-console-state.warn {
+  color: #e2d9ff;
+  border-color: rgba(124, 92, 255, 0.6);
+  background: rgba(124, 92, 255, 0.14);
+}
+
+.gm-console-state.idle {
+  color: var(--muted);
+}
+
+.gm-console-message {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(154, 167, 189, 0.06);
+  color: var(--text);
+}
+
+.gm-console-message.ok {
+  border-color: rgba(92, 255, 157, 0.45);
+  background: rgba(92, 255, 157, 0.08);
+  color: #d7ffe6;
+}
+
+.gm-console-message.bad {
+  border-color: rgba(255, 92, 122, 0.45);
+  background: rgba(255, 92, 122, 0.08);
+  color: #ffd7df;
+}
+
+.gm-console-message[hidden] {
+  display: none;
+}
+
+.gm-console-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.gm-console-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0f151e;
+}
+
+.gm-console-stat.wide {
+  grid-column: 1 / -1;
+}
+
+.gm-console-stat.ok .gm-console-stat-value {
+  color: var(--ok);
+}
+
+.gm-console-stat.bad .gm-console-stat-value {
+  color: var(--danger);
+}
+
+.gm-console-stat-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.gm-console-stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.gm-console-stat.wide .gm-console-stat-value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.gm-console-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.gm-console-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 200px;
+  border-radius: 18px;
+  border: 2px solid transparent;
+  color: #06110f;
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+
+.gm-console-btn:disabled {
+  filter: grayscale(0.85);
+  opacity: 0.4;
+}
+
+.gm-console-btn:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
+.gm-console-btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.gm-console-btn.bonus {
+  background: linear-gradient(135deg, #9a82ff, var(--accent-2));
+  color: #f4f0ff;
+}
+
+.gm-console-btn.reward {
+  background: linear-gradient(135deg, var(--ok), #2bbf6a);
+}
+
+.gm-console-btn.punish {
+  background: linear-gradient(135deg, var(--danger), #c8304e);
+  color: #fff3f5;
+}
+
+.gm-console-btn-title {
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.gm-console-btn-sub {
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.gm-console-badges {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.gm-console-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 96px;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  background: #121a26;
+  transition: transform 0.08s ease, background 0.15s ease;
+}
+
+.gm-console-badge:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.gm-console-badge.reward {
+  border-color: rgba(92, 255, 157, 0.55);
+}
+
+.gm-console-badge.reward:not(:disabled):hover {
+  background: rgba(92, 255, 157, 0.1);
+}
+
+.gm-console-badge.skip {
+  border-color: rgba(61, 214, 198, 0.55);
+}
+
+.gm-console-badge.skip:not(:disabled):hover {
+  background: rgba(61, 214, 198, 0.1);
+}
+
+.gm-console-badge.complete {
+  border-color: rgba(255, 140, 102, 0.6);
+}
+
+.gm-console-badge.complete:not(:disabled):hover {
+  background: rgba(255, 140, 102, 0.1);
+}
+
+.gm-console-badge-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.gm-console-badge-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.gm-console-log {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.gm-console-log li {
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--border);
+  background: #0f151e;
+  border-radius: 6px;
+}
+
+.gm-console-log li.ok {
+  border-left-color: var(--ok);
+}
+
+.gm-console-log li.bad {
+  border-left-color: var(--danger);
+}
+
+.gm-console-log-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .gm-console-buttons,
+  .gm-console-badges {
+    grid-template-columns: 1fr;
+  }
+  .gm-console-btn {
+    min-height: 120px;
+  }
 }

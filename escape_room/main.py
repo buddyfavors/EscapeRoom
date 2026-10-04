@@ -33,6 +33,8 @@ from escape_room.models import (
     RFID_GOOD_PERCENT,
     RFID_GOOD_PERCENT_BASE,
     RFID_PRD_BAD_INCREMENT,
+    VirtualBadge,
+    VirtualScanOutcome,
 )
 from escape_room.rfid import create_rfid_listener
 from escape_room.rfid_store import load_rfid_tags, save_rfid_tags_text, validate_rfid_tags_text
@@ -85,6 +87,15 @@ class RoomSettingsBody(BaseModel):
     wildcard_free_good_tag: str | None = None
     wildcard_trump_tag: str | None = None
     gamemaster_complete_tag: str | None = None
+    physical_wheel: bool = False
+
+
+class VirtualScanBody(BaseModel):
+    outcome: VirtualScanOutcome = "roll"
+
+
+class VirtualBadgeBody(BaseModel):
+    badge: VirtualBadge
 
 
 class GameStartBody(BaseModel):
@@ -200,7 +211,6 @@ def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
         "bad_codes_goal": snap.bad_codes_goal,
         "punishments_received": snap.punishments_received,
         "punishments_limit": snap.punishments_limit,
-        "last_punishment": snap.last_punishment,
         "gm_won": snap.gm_won,
         "game_over": snap.game_over,
         "good_rfid_progress": snap.good_rfid_progress,
@@ -370,6 +380,11 @@ async def home(request: Request) -> HTMLResponse:
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request) -> HTMLResponse:
     return _html(request, "settings.html")
+
+
+@app.get("/gamemaster", response_class=HTMLResponse)
+async def gamemaster_page(request: Request) -> HTMLResponse:
+    return _html(request, "gamemaster.html")
 
 
 @app.get("/minigames", response_class=HTMLResponse)
@@ -546,6 +561,26 @@ async def gm_snapshot() -> JSONResponse:
             "rfid_good_percent": snap.rfid_good_percent,
             "programming": _programming_from_slots(snap.locks),
         }
+    )
+
+
+@app.post("/api/gm/virtual-scan")
+async def gm_virtual_scan(body: VirtualScanBody) -> JSONResponse:
+    """Gamemaster console: scan a virtual approved RFID (roll, forced good, or forced bad)."""
+    result = state.engine.submit_virtual_rfid(body.outcome)
+    snap = state.engine.snapshot()
+    return JSONResponse(
+        content={"result": result.model_dump(mode="json"), "snapshot": _redact_snapshot(snap)}
+    )
+
+
+@app.post("/api/gm/virtual-badge")
+async def gm_virtual_badge(body: VirtualBadgeBody) -> JSONResponse:
+    """Gamemaster console: reward badge, skip badge, or complete the pending punishment."""
+    result = state.engine.submit_virtual_badge(body.badge)
+    snap = state.engine.snapshot()
+    return JSONResponse(
+        content={"result": result.model_dump(mode="json"), "snapshot": _redact_snapshot(snap)}
     )
 
 
