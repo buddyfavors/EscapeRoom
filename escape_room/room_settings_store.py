@@ -37,6 +37,10 @@ class RoomSettings(BaseModel):
         default=None,
         description="10-digit RFID badge — completes pending punishment or triggers immediate punishment.",
     )
+    physical_wheel: bool = Field(
+        default=False,
+        description="Gamemaster spins a real wheel (players roll dice for repeats) instead of the on-screen wheel.",
+    )
 
     @field_validator("gamemaster_name", mode="before")
     @classmethod

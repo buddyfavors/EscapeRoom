@@ -69,6 +69,18 @@
       <input id="gm-complete-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
 
+    <label class="mode-card physical-wheel-toggle">
+      <input type="checkbox" id="physical-wheel" />
+      <span class="mode-card-body">
+        <strong>Use a physical wheel of punishments</strong>
+        <span class="muted">
+          When a punishment triggers, the screen tells the Gamemaster to spin the real wheel and a player to roll
+          the dice for how many times it's dealt. The on-screen wheel doesn't spin and the wheel list below isn't
+          used. Finish with the skip badge or Gamemaster badge (or the Gamemaster page) as usual.
+        </span>
+      </span>
+    </label>
+
     <div class="actions">
       <button id="btn-save-room" type="button" class="primary">Save room settings</button>
       <button id="btn-reload-room" type="button" class="ghost">Reload</button>
@@ -84,6 +96,7 @@
       <code>minigame</code> for random, or <code>minigame:&lt;slug&gt;</code> for a specific one —
       <code>reaction-rush</code>, <code>whack-mole</code>, <code>rps</code>, <code>simon</code>,
       <code>pattern</code>). Any other line is shown to the players as a text punishment.
+      Using a real wheel instead? Turn on <strong>Use a physical wheel of punishments</strong> under room settings above.
     </p>
     <label for="punishments-text" class="label">Punishment wheel</label>
     <textarea id="punishments-text" class="codes" spellcheck="false"
@@ -139,5 +152,5 @@
     </ul>
   </section>
 
-  <script src="/static/js/settings.js?v=2"></script>
+  <script src="/static/js/settings.js?v=3"></script>
 {% endblock %}

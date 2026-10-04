@@ -1,9 +1,3 @@
 # KnottyBytes Escape Room — Wheel of Punishments
 # One punishment per line. '#' lines ignored.
 # Prefixes: 'minigame', 'minigame:<slug>', 'text:<msg>'.
-Tickling: Tickle the person anywhere you want!
-Nibble: A light nibble anywhere you want!
-Bite: Make sure to leave some teeth marks!
-Scatch: Let's see those red streaks on her!
-Slap: A light slap anyhere you want!
-Choke: Only Daddy can do this to her!

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Escape Room{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=13" />
+    <link rel="stylesheet" href="/static/css/style.css?v=18" />
     {% block extra_css %}{% endblock %}
   </head>
   <body>
@@ -12,6 +12,7 @@
       <div class="brand">KnottyBytes Escape Room</div>
       <nav class="nav">
         <a href="/">Play</a>
+        <a href="/gamemaster">Gamemaster</a>
         {% if minigames_enabled %}
           <a href="/minigames">Minigames</a>
         {% endif %}

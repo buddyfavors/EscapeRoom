@@ -215,16 +215,12 @@
     <div class="active-head">
       <div>
         <h1>
-          <span id="active-mode-label">Game</span>
-          <span id="active-difficulty" class="muted"></span>
           <span id="won-badge" class="won-badge" hidden>ESCAPED</span>
           <span id="bounty-won-badge" class="won-badge" hidden>YOU WIN</span>
           <span id="gm-won-badge" class="gm-won-badge" hidden>GAME OVER</span>
         </h1>
-        <p class="lede" id="active-sub">Scan clues, crack the locks, escape before the Gamemaster wins.</p>
         <p id="phase-banner" class="phase-banner muted" hidden></p>
         <p id="timer-display" class="timer-display" hidden></p>
-        <p id="rfid-next-bad" class="muted rfid-next-bad" hidden></p>
         <div id="gm-controls" class="gm-controls" hidden>
           <span id="gm-status-line" class="muted gm-status-line"></span>
         </div>
@@ -272,8 +268,6 @@
         {% endif %}
       </div>
     </div>
-    <p class="muted meter-hint" id="meter-hint"></p>
-
     <section class="progress" id="locks-section">
       <h2>Locks</h2>
       <div id="locks" class="locks"></div>
@@ -288,9 +282,6 @@
           <div class="wheel-spinner-pointer" aria-hidden="true"></div>
         </div>
         <p class="wheel-modal-kicker">Wheel of punishments</p>
-        <p id="wheel-last-kicker" class="wheel-modal-kicker wheel-last-kicker" hidden>Last punishment</p>
-        <h2 id="wheel-spin-label" class="wheel-punishment-label" hidden></h2>
-        <p id="wheel-spin-text" class="wheel-punishment-text muted" hidden></p>
       </div>
       <div id="wheel-result-stage" hidden>
         <p class="wheel-modal-kicker" id="wheel-result-kicker">Your punishment</p>
@@ -308,5 +299,5 @@
   </div>
 
   <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=26"></script>
+  <script src="/static/js/app.js?v=29"></script>
 {% endblock %}

@@ -47,6 +47,11 @@ class Difficulty(str, Enum):
 
 LockKind = Literal["digit3", "letter5", "digit4"]
 
+# Gamemaster console virtual RFID: normal roll, guaranteed good, or guaranteed bad.
+VirtualScanOutcome = Literal["roll", "good", "bad"]
+# Gamemaster console virtual badges (same effect as the configured physical badge tags).
+VirtualBadge = Literal["reward", "skip", "complete"]
+
 # Base RFID luck (same for every tier). Difficulty only changes PRD escalation below.
 RFID_GOOD_PERCENT_BASE = 45
 RFID_GOOD_PERCENT: dict[Difficulty, int] = {
@@ -255,10 +260,6 @@ class GameSnapshot(BaseModel):
     punishments_limit: int = Field(
         default=UNLIMITED_PUNISHMENT_LIMIT,
         description="Wheel punishments allowed before the Gamemaster wins (0 = unlimited; Breakout only).",
-    )
-    last_punishment: str | None = Field(
-        default=None,
-        description="Label for the most recent wheel punishment.",
     )
     gm_won: bool = Field(
         default=False,
