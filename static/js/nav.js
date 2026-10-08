@@ -4,6 +4,7 @@
 
   function setActive(active) {
     btn.hidden = !active;
+    document.body.classList.toggle("game-active", active);
   }
   window.NavSetGameActive = setActive;
 

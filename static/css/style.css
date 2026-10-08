@@ -37,6 +37,10 @@ body {
   z-index: 10;
 }
 
+body.game-active:not(.keep-nav) .topbar {
+  display: none;
+}
+
 .brand {
   font-weight: 650;
   letter-spacing: 0.02em;
@@ -111,89 +115,20 @@ h2 {
   line-height: 1.55;
 }
 
-.difficulty label {
-  display: block;
-  margin: 8px 0 10px;
-  cursor: pointer;
-}
-
-.rfid-tiers {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 4px 0 10px;
-  font-size: 0.88rem;
-}
-
-.rfid-tiers th,
-.rfid-tiers td {
-  border: 1px solid var(--border);
-  padding: 8px 10px;
-  text-align: left;
-}
-
-.rfid-tiers th {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.difficulty-hint {
-  margin: 0 0 10px;
-  font-size: 0.9rem;
-}
-
-.rfid-tiers-note {
-  margin: 0 0 4px;
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-.lock-picks {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px 16px;
-  margin: 0;
-}
-
 .gm-preview-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px 16px;
-  margin: 0 0 4px;
+  margin: 16px 0 4px;
   background: rgba(255, 211, 92, 0.04);
 }
 
-.gm-preview-panel h2 {
+.gm-preview-panel h3 {
   margin: 0 0 8px;
   font-size: 1.05rem;
 }
 
 .gm-preview-hint {
-  margin: 0 0 10px;
-  font-size: 0.9rem;
-}
-
-.lock-picks + .gm-preview-panel {
-  margin-top: 4px;
-}
-
-.gm-preview-panel + .difficulty {
-  margin-top: 28px;
-}
-
-.punishment-limit {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px 14px;
-  margin: 28px 0 0;
-}
-
-.punishment-limit legend {
-  padding: 0 6px;
-  color: var(--muted);
-}
-
-.punishment-limit-hint {
   margin: 0 0 10px;
   font-size: 0.9rem;
 }
@@ -217,10 +152,6 @@ h2 {
   background: #0f1622;
   color: var(--text);
   font-weight: 700;
-}
-
-.gm-preview-panel + .punishment-limit {
-  margin-top: 28px;
 }
 
 .strike-pill.punish-pill {
@@ -251,11 +182,6 @@ h2 {
   display: inline-block;
 }
 
-.lock-picks legend {
-  padding: 0 6px;
-  color: var(--muted);
-}
-
 .lock-picks-hint {
   margin: 0 0 12px;
   font-size: 0.9rem;
@@ -263,7 +189,7 @@ h2 {
 
 .lock-pick-row {
   display: grid;
-  grid-template-columns: 1fr 3rem 5rem 3rem 8rem;
+  grid-template-columns: 1fr 3rem 5rem 3rem;
   gap: 10px 14px;
   align-items: center;
   margin-bottom: 10px;
@@ -298,10 +224,6 @@ h2 {
 
 .lock-pick-row input[type="number"][readonly] {
   -moz-appearance: textfield;
-}
-
-.lock-pick-row input[type="number"]:disabled {
-  opacity: 0.45;
 }
 
 .gm-programming {
@@ -343,24 +265,6 @@ h2 {
 .gm-raw {
   margin-top: 14px;
   color: var(--muted);
-}
-
-.difficulty {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px 6px;
-  margin: 0 0 16px;
-}
-
-.difficulty legend {
-  padding: 0 6px;
-  color: var(--muted);
-}
-
-.difficulty label {
-  display: block;
-  margin: 8px 0 10px;
-  cursor: pointer;
 }
 
 .actions {
@@ -718,13 +622,6 @@ code {
   color: #cfe1ff;
 }
 
-.game-mode-picks {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  margin: 18px 0;
-}
-
 .mode-card {
   display: flex;
   align-items: flex-start;
@@ -808,12 +705,7 @@ code {
   font-size: 0.95rem;
 }
 
-.final-countdown-settings {
-  margin-top: 12px;
-  border: none;
-  padding: 0;
-}
-
+.modal-overlay,
 .wheel-modal {
   position: fixed;
   inset: 0;
@@ -826,8 +718,25 @@ code {
   padding: 20px;
 }
 
+.modal-overlay[hidden],
 .wheel-modal[hidden] {
   display: none !important;
+}
+
+.setup-modal-card {
+  width: min(640px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: linear-gradient(160deg, #141c28 0%, #0b111a 100%);
+  padding: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.setup-modal-actions {
+  justify-content: flex-end;
+  margin: 16px 0 0;
 }
 
 .wheel-modal-card {
@@ -980,7 +889,8 @@ code {
   color: var(--muted);
 }
 
-.gm-console-message {
+.gm-console-message,
+.play-banner {
   margin: 12px 0 0;
   padding: 10px 14px;
   border-radius: 10px;
@@ -989,19 +899,26 @@ code {
   color: var(--text);
 }
 
-.gm-console-message.ok {
+.play-banner {
+  margin: 0 0 14px;
+}
+
+.gm-console-message.ok,
+.play-banner.ok {
   border-color: rgba(92, 255, 157, 0.45);
   background: rgba(92, 255, 157, 0.08);
   color: #d7ffe6;
 }
 
-.gm-console-message.bad {
+.gm-console-message.bad,
+.play-banner.bad {
   border-color: rgba(255, 92, 122, 0.45);
   background: rgba(255, 92, 122, 0.08);
   color: #ffd7df;
 }
 
-.gm-console-message[hidden] {
+.gm-console-message[hidden],
+.play-banner:empty {
   display: none;
 }
 
@@ -1098,6 +1015,31 @@ code {
   color: #fff3f5;
 }
 
+.gm-console-btn.start {
+  background: linear-gradient(135deg, var(--accent), #2aa39a);
+}
+
+.start-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.start-view[hidden] {
+  display: none;
+}
+
+.start-view .gm-console-btn {
+  width: 100%;
+  min-height: 260px;
+}
+
+.start-view .gm-console-btn-title {
+  font-size: 3.2rem;
+}
+
 .gm-console-btn-title {
   font-size: 2.4rem;
   font-weight: 800;
@@ -1112,7 +1054,7 @@ code {
 
 .gm-console-badges {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-top: 16px;
 }
@@ -1156,6 +1098,14 @@ code {
 
 .gm-console-badge.complete:not(:disabled):hover {
   background: rgba(255, 140, 102, 0.1);
+}
+
+.gm-console-badge.lockbox {
+  border-color: rgba(255, 210, 92, 0.55);
+}
+
+.gm-console-badge.lockbox:not(:disabled):hover {
+  background: rgba(255, 210, 92, 0.1);
 }
 
 .gm-console-badge-title {

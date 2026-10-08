@@ -9,7 +9,6 @@ from typing import Any, Literal
 from escape_room.models import (
     BountyTheme,
     CodeAttemptResult,
-    CodePools,
     DEFAULT_GOOD_CODES_PER_REWARD,
     DEFAULT_PUNISHMENT_LIMIT,
     UNLIMITED_PUNISHMENT_LIMIT,
@@ -94,80 +93,60 @@ WHEEL_MINIGAME_DISABLED_LINES: tuple[str, ...] = (
 )
 
 
-def _kind_label(kind: LockKind) -> str:
-    if kind == "digit3":
-        return "3-digit lock"
+CODE_DIGITS = 4
+MAX_UNIQUE_CODES = 10**CODE_DIGITS
+
+
+def lock_kind_label(kind: LockKind) -> str:
+    if kind == "lock4":
+        return "4-digit lock"
     if kind == "digit4":
         return "4-digit lockbox"
-    if kind == "letter5":
-        return "5-letter lock"
     return kind
 
 
-def _take_unique(pool: list[str], n: int, rng: random.Random) -> list[str]:
-    if len(pool) < n:
-        raise ValueError(f"Need at least {n} unique codes in pool, have {len(pool)}")
-    return rng.sample(pool, n)
+def build_slots_from_counts(counts: LockCounts, rng: random.Random) -> list[LockSlot]:
+    """Generate a random 4-digit combination per lock, unique across every lock in the game.
 
-
-def build_slots_from_counts(
-    counts: LockCounts,
-    pools: CodePools,
-    rng: random.Random,
-) -> list[LockSlot]:
-    """Pick random codes from configured pools; empty pool types are allowed if count is 0."""
-    if counts.total() < 1:
+    Regular locks come before lockboxes, matching the order their clues are earned.
+    """
+    total = counts.total()
+    if total < 1:
         raise ValueError("Pick at least one lock to start the game.")
+    if total > MAX_UNIQUE_CODES:
+        raise ValueError(f"A game can have at most {MAX_UNIQUE_CODES} locks.")
 
+    codes = iter(rng.sample(range(MAX_UNIQUE_CODES), total))
     slots: list[LockSlot] = []
-    for kind in ("digit3", "letter5", "digit4"):
-        n = getattr(counts, kind)
-        if n == 0:
-            continue
-        pool = list(getattr(pools, kind))
-        if n > len(pool):
-            label = _kind_label(kind)
-            raise ValueError(
-                f"This game needs {n} {label}(s), but only {len(pool)} "
-                f"{'is' if len(pool) == 1 else 'are'} configured in Settings."
-            )
-        codes = _take_unique(pool, n, rng)
-        for code in codes:
+    for kind in ("lock4", "digit4"):
+        for _ in range(getattr(counts, kind)):
             slots.append(
                 LockSlot(
                     id=str(uuid.uuid4()),
                     kind=kind,
-                    code=code,
+                    code=f"{next(codes):0{CODE_DIGITS}d}",
                     solved=False,
                     revealed=[],
                 )
             )
-
-    random.shuffle(slots)
     return slots
 
 
 def _counts_equal(a: LockCounts, b: LockCounts) -> bool:
-    return a.digit3 == b.digit3 and a.letter5 == b.letter5 and a.digit4 == b.digit4
+    return a.lock4 == b.lock4 and a.digit4 == b.digit4
 
 
-def _normalize_submitted(kind: LockKind, raw: str) -> str:
-    s = raw.strip()
-    if kind == "letter5":
-        return s.upper()
-    return s
+def _players_escaped(slots: list[LockSlot]) -> bool:
+    """Lockbox games end once every lockbox is open; otherwise every lock must be open."""
+    if not slots:
+        return False
+    lockboxes = [s for s in slots if s.kind == "digit4"]
+    return all(s.solved for s in (lockboxes or slots))
 
 
 def _matches(kind: LockKind, submitted: str, expected: str) -> bool:
-    sub = _normalize_submitted(kind, submitted)
-    exp = _normalize_submitted(kind, expected)
-    if kind == "digit3":
-        return sub.isdigit() and len(sub) == 3 and sub == exp
-    if kind == "digit4":
-        return sub.isdigit() and len(sub) == 4 and sub == exp
-    if kind == "letter5":
-        return len(sub) == 5 and sub.isalpha() and sub == exp
-    return False
+    sub = submitted.strip()
+    return sub.isdigit() and len(sub) == CODE_DIGITS and sub == expected.strip()
 
 
 def _reveal_score(slot: LockSlot) -> int:
@@ -208,8 +187,6 @@ def _apply_one_reveal(slot: LockSlot, rng: random.Random) -> tuple[int, str] | N
         return None
     idx = rng.choice(hidden)
     char = slot.code[idx]
-    if slot.kind == "letter5":
-        char = char.upper()
     slot.revealed[idx] = char
     return idx, char
 
@@ -219,7 +196,6 @@ class GameEngine:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._pools: CodePools = CodePools()
         self._rfid: RfidTagFile = RfidTagFile()
         self._punishments: list[PunishmentEntry] = []
         self._active: list[LockSlot] | None = None
@@ -231,6 +207,9 @@ class GameEngine:
         # Breakout UX: first good scan chooses a random lock; subsequent good scans
         # keep revealing that same lock until it is fully revealed.
         self._breakout_lock_in_progress_id: str | None = None
+        # Lock ids in the order their codes became fully revealed; a lockbox badge opens
+        # the earliest revealed lockbox since badges aren't tied to a specific box.
+        self._fully_revealed_order: list[str] = []
         self._listeners: list[Callable[[dict], None]] = []
         self._pending_slots: list[LockSlot] | None = None
         self._pending_counts: LockCounts | None = None
@@ -291,10 +270,6 @@ class GameEngine:
         remaining = int((ready_at - datetime.now(tz=timezone.utc)).total_seconds())
         return max(0, remaining)
 
-    def set_pools(self, pools: CodePools) -> None:
-        with self._lock:
-            self._pools = pools
-
     def set_rfid_tags(self, tags: RfidTagFile) -> None:
         with self._lock:
             self._rfid = tags
@@ -306,10 +281,6 @@ class GameEngine:
     def get_punishments(self) -> list[PunishmentEntry]:
         with self._lock:
             return list(self._punishments)
-
-    def get_pools(self) -> CodePools:
-        with self._lock:
-            return self._pools.model_copy(deep=True)
 
     def get_rfid_tags(self) -> RfidTagFile:
         with self._lock:
@@ -349,7 +320,7 @@ class GameEngine:
             locks = [slot.model_copy(deep=True) for slot in self._active]
             mode = self._game_mode
             if mode is GameMode.breakout:
-                won = bool(locks) and all(s.solved for s in locks)
+                won = _players_escaped(locks)
             elif mode is GameMode.bounty:
                 won = self._rewards_earned >= self._rewards_to_win
             else:
@@ -430,8 +401,7 @@ class GameEngine:
         with self._lock:
             if self._active is not None:
                 raise ValueError("Cannot preview locks while a game is running.")
-            pools = self._pools
-            slots = build_slots_from_counts(lock_counts, pools, rng)
+            slots = build_slots_from_counts(lock_counts, rng)
             self._pending_slots = [slot.model_copy(deep=True) for slot in slots]
             self._pending_counts = lock_counts.model_copy(deep=True)
             return [slot.model_copy(deep=True) for slot in slots]
@@ -454,10 +424,9 @@ class GameEngine:
     ) -> GameSnapshot:
         rng = rng or random.Random()
         with self._lock:
-            pools = self._pools
             if game_mode is GameMode.breakout:
                 if lock_counts.total() < 1:
-                    raise ValueError("Pick at least one lock to start Breakout.")
+                    raise ValueError("Pick at least one lock to start the game.")
                 if (
                     self._pending_slots is not None
                     and self._pending_counts is not None
@@ -465,7 +434,7 @@ class GameEngine:
                 ):
                     slots = [slot.model_copy(deep=True) for slot in self._pending_slots]
                 else:
-                    slots = build_slots_from_counts(lock_counts, pools, rng)
+                    slots = build_slots_from_counts(lock_counts, rng)
             else:
                 slots = []
             self._pending_slots = None
@@ -479,6 +448,7 @@ class GameEngine:
             self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
             self._breakout_lock_in_progress_id = None
+            self._fully_revealed_order = []
             if game_mode is GameMode.breakout:
                 limit = int(punishment_limit)
                 if limit <= 0:
@@ -527,6 +497,7 @@ class GameEngine:
             self._bad_codes_streak = 0
             self._good_rfid_since_minigame = 0
             self._breakout_lock_in_progress_id = None
+            self._fully_revealed_order = []
             self._pending_slots = None
             self._pending_counts = None
             self._punishments_received = 0
@@ -559,18 +530,19 @@ class GameEngine:
         return self._submit_rfid(None, force=force)
 
     def submit_virtual_badge(self, badge: VirtualBadge) -> CodeAttemptResult:
-        """Gamemaster console: scan the reward, skip, or Gamemaster badge without a physical tag.
+        """Gamemaster console: scan the reward, skip, Gamemaster, or a lockbox badge without a physical tag.
 
-        Unlike the physical Gamemaster badge, "complete" never triggers a punishment
-        when none is pending.
+        During a scratch-off luck test, "reward" is a winning ticket and "complete" a losing
+        one. Otherwise, unlike the physical Gamemaster badge, "complete" never triggers a
+        punishment when none is pending.
         """
         return self._submit_rfid(None, badge=badge)
 
     def _bad_codes_meter(self) -> int:
-        """Progress toward the next wheel spin (0–goal-1); never resets until a new game."""
+        """Progress toward the next luck test (0–goal-1); never resets until a new game."""
         return self._bad_codes_streak % BAD_CODE_STREAK_TRIGGER
 
-    def _bad_codes_wheel_triggered(self) -> bool:
+    def _bad_codes_streak_triggered(self) -> bool:
         return self._bad_codes_streak > 0 and self._bad_codes_streak % BAD_CODE_STREAK_TRIGGER == 0
 
     def _game_is_playable(self) -> bool:
@@ -580,11 +552,7 @@ class GameEngine:
             return False
         if self._game_mode is GameMode.bounty and self._rewards_earned >= self._rewards_to_win:
             return False
-        if (
-            self._game_mode is GameMode.breakout
-            and self._active
-            and all(s.solved for s in self._active)
-        ):
+        if self._game_mode is GameMode.breakout and _players_escaped(self._active):
             return False
         return True
 
@@ -777,8 +745,7 @@ class GameEngine:
                 "kind": "physical",
                 "label": "Spin the wheel!",
                 "message": self._format_msg(
-                    "{gm} spins the wheel of punishments, then a player rolls the dice "
-                    "for how many times it's dealt."
+                    "{gm} spins the wheel of punishments."
                 ),
             }
             display_entries: list[str] = []
@@ -961,7 +928,7 @@ class GameEngine:
 
     def _apply_bounty_bad_streak_locked(self) -> tuple[str, dict | None]:
         if self._bounty_theme is BountyTheme.deadline:
-            if not self._bad_codes_wheel_triggered():
+            if not self._bad_codes_streak_triggered():
                 return (
                     f" ({self._bad_codes_meter()}/{BAD_CODE_STREAK_TRIGGER} bad codes — "
                     f"{self._gm_name()} is counting.)",
@@ -975,9 +942,9 @@ class GameEngine:
                 ),
                 None,
             )
-        triggered = self._bad_codes_wheel_triggered()
+        triggered = self._bad_codes_streak_triggered()
         if triggered:
-            return self._wheel_tail(), self._spin_punishment_wheel()
+            return self._luck_test_tail(), self._begin_luck_test_locked()
         return (
             f" ({self._bad_codes_meter()}/{BAD_CODE_STREAK_TRIGGER} bad codes — "
             f"{self._gm_name()} is counting.)",
@@ -1104,10 +1071,10 @@ class GameEngine:
         idx, char = applied
         if all(x is not None for x in slot.revealed):
             self._breakout_lock_in_progress_id = None
-        label = "letter" if slot.kind == "letter5" else "number"
+            self._fully_revealed_order.append(slot.id)
         return CodeAttemptResult(
             ok=True,
-            message=f'Clue earned: position {idx + 1} on a {label} lock is "{char}".',
+            message=f'Clue earned: position {idx + 1} on a {lock_kind_label(slot.kind)} is "{char}".',
             interaction="rfid_reveal",
             reveal={
                 "lock_id": slot.id,
@@ -1188,6 +1155,7 @@ class GameEngine:
 
         The first good scan chooses a random eligible lock. Further good scans
         keep targeting that same lock until all clue positions are revealed.
+        Lockboxes are only eligible once every regular lock is revealed or open.
         """
         candidates = [
             s
@@ -1196,6 +1164,9 @@ class GameEngine:
         ]
         if not candidates:
             return None
+        regular = [s for s in candidates if s.kind != "digit4"]
+        if regular:
+            candidates = regular
 
         if self._breakout_lock_in_progress_id:
             for s in candidates:
@@ -1219,7 +1190,7 @@ class GameEngine:
         given ``badge`` regardless of which badge tags are configured in room settings.
         """
         bonus_minigame_url: str | None = None
-        punishment_wheel_event: dict | None = None
+        punishment_event: dict | None = None
         phase_event: dict | None = None
         result: CodeAttemptResult | None = None
         with self._lock:
@@ -1256,6 +1227,38 @@ class GameEngine:
             is_skip = self._badge_matches(tag, ws.wildcard_trump_tag, badge, "skip")
             is_complete = self._badge_matches(tag, ws.gamemaster_complete_tag, badge, "complete")
             is_reward = self._badge_matches(tag, ws.wildcard_free_good_tag, badge, "reward")
+            is_lockbox = (
+                badge == "lockbox"
+                if badge is not None
+                else tag is not None and tag in ws.lockbox_tags
+            )
+
+            if self._punishment_resolution is PunishmentResolution.luck_test:
+                if is_reward or is_complete:
+                    result, luck_event = self._resolve_luck_test_locked(won=is_reward)
+                    self._emit_code_result(result)
+                    snap = self.snapshot()
+                    luck_event["snapshot"] = snap.model_dump(mode="json") if snap else None
+                    self._emit(luck_event)
+                    return result
+                if tag is not None and tag in self._spent_tags:
+                    result = CodeAttemptResult(
+                        ok=False,
+                        message="Already scanned — that tag is spent for this run.",
+                        interaction="rfid_spent",
+                    )
+                    self._emit_code_result(result)
+                    return result
+                result = CodeAttemptResult(
+                    ok=False,
+                    message=self._format_msg(
+                        "Scratch-off pending — {gm} scans the reward badge for a winning "
+                        "ticket or the punishment card for a losing one."
+                    ),
+                    interaction="rfid_punishment",
+                )
+                self._emit_code_result(result)
+                return result
 
             if self._punishment_resolution is PunishmentResolution.trump_window:
                 trump = self._try_trump_skip_locked(is_skip)
@@ -1322,6 +1325,11 @@ class GameEngine:
             mode = self._game_mode
             assert difficulty is not None
 
+            if is_lockbox:
+                result = self._open_lockbox_locked(tag)
+                self._emit_code_result(result)
+                return result
+
             # Physical Gamemaster badge with no punishment pending: trigger an immediate
             # punishment and reset the bad-code streak. (Pending case is handled above.)
             if is_complete:
@@ -1334,7 +1342,7 @@ class GameEngine:
                     self._emit_code_result(result)
                     return result
                 self._bad_codes_streak = 0
-                punishment_wheel_event = self._spin_punishment_wheel()
+                punishment_event = self._spin_punishment_wheel()
                 result = CodeAttemptResult(
                     ok=False,
                     message="Gamemaster badge scanned — immediate punishment triggered.",
@@ -1342,8 +1350,8 @@ class GameEngine:
                 )
                 self._emit_code_result(result)
                 snap = self.snapshot()
-                punishment_wheel_event["snapshot"] = snap.model_dump(mode="json") if snap else None
-                self._emit(punishment_wheel_event)
+                punishment_event["snapshot"] = snap.model_dump(mode="json") if snap else None
+                self._emit(punishment_event)
                 return result
 
             if badge == "skip":
@@ -1426,10 +1434,9 @@ class GameEngine:
                 if result.interaction == "rfid_punishment":
                     self._rfid_consecutive_good_scans = 0
                     self._bad_codes_streak += 1
-                    tail, wheel = self._apply_bounty_bad_streak_locked()
-                    if wheel is not None:
-                        punishment_wheel_event = wheel
-                        tail = self._wheel_tail()
+                    tail, luck_event = self._apply_bounty_bad_streak_locked()
+                    if luck_event is not None:
+                        punishment_event = luck_event
                     result = result.model_copy(update={"message": result.message + tail})
                 elif result.interaction == "rfid_good":
                     self._rfid_consecutive_good_scans += 1
@@ -1463,10 +1470,10 @@ class GameEngine:
                     if mode is GameMode.deadline:
                         tail = self._apply_deadline_time_penalty_locked()
                     else:
-                        triggered = self._bad_codes_wheel_triggered()
+                        triggered = self._bad_codes_streak_triggered()
                         if triggered:
-                            punishment_wheel_event = self._spin_punishment_wheel()
-                            tail = self._wheel_tail()
+                            punishment_event = self._begin_luck_test_locked()
+                            tail = self._luck_test_tail()
                         else:
                             tail = (
                                 f" ({self._bad_codes_meter()}/{BAD_CODE_STREAK_TRIGGER} bad codes — "
@@ -1480,12 +1487,12 @@ class GameEngine:
 
                 self._emit_code_result(result)
 
-        if punishment_wheel_event is not None:
+        if punishment_event is not None:
             snap = self.snapshot()
-            punishment_wheel_event["snapshot"] = (
+            punishment_event["snapshot"] = (
                 snap.model_dump(mode="json") if snap else None
             )
-            self._emit(punishment_wheel_event)
+            self._emit(punishment_event)
         if bonus_minigame_url:
             self._emit(
                 {
@@ -1507,6 +1514,67 @@ class GameEngine:
     def _spend_tag_locked(self, tag: str | None) -> None:
         if tag is not None:
             self._spent_tags.add(tag)
+
+    def _lockbox_for_badge_locked(self) -> LockSlot | None:
+        """Earliest fully revealed closed lockbox, else the closed lockbox with the most clues."""
+        closed = [s for s in self._active or [] if s.kind == "digit4" and not s.solved]
+        by_id = {s.id: s for s in closed}
+        for lock_id in self._fully_revealed_order:
+            if lock_id in by_id:
+                return by_id[lock_id]
+        started = [s for s in closed if _reveal_score(s) > 0]
+        if not started:
+            return None
+        return max(started, key=_reveal_score)
+
+    def _open_lockbox_locked(self, tag: str | None) -> CodeAttemptResult:
+        """Badge from inside a lockbox: mark that lockbox open (each badge once per game)."""
+        if self._game_mode is not GameMode.breakout:
+            return CodeAttemptResult(
+                ok=False,
+                message="Lockbox badges only count in Classic Escape.",
+                interaction="rfid_unknown",
+            )
+        if tag is not None and tag in self._spent_tags:
+            return CodeAttemptResult(
+                ok=False,
+                message="That lockbox badge was already scanned this game.",
+                interaction="rfid_spent",
+            )
+        slots = self._active
+        assert slots is not None
+        lockboxes = [s for s in slots if s.kind == "digit4"]
+        if not lockboxes:
+            return CodeAttemptResult(
+                ok=False,
+                message="This game has no lockboxes.",
+                interaction="rfid_unknown",
+            )
+        slot = self._lockbox_for_badge_locked()
+        if slot is None:
+            return CodeAttemptResult(
+                ok=False,
+                message="No lockbox code has been revealed yet — keep earning clues.",
+                interaction="rfid_unknown",
+            )
+        slot.solved = True
+        self._spend_tag_locked(tag)
+        if self._breakout_lock_in_progress_id == slot.id:
+            self._breakout_lock_in_progress_id = None
+        opened = sum(1 for s in lockboxes if s.solved)
+        won = _players_escaped(slots)
+        msg = (
+            "All lockboxes open — you escaped!"
+            if won
+            else f"Lockbox opened! ({opened}/{len(lockboxes)})"
+        )
+        return CodeAttemptResult(
+            ok=True,
+            message=msg,
+            lock_id=slot.id,
+            won=won,
+            interaction="lockbox_open",
+        )
 
     def _game_over_message(self) -> str:
         gm = self._gm_name()
@@ -1585,10 +1653,10 @@ class GameEngine:
         idx, char = applied
         if all(x is not None for x in slot.revealed):
             self._breakout_lock_in_progress_id = None
-        label = "letter" if slot.kind == "letter5" else "number"
+            self._fully_revealed_order.append(slot.id)
         return CodeAttemptResult(
             ok=True,
-            message=f'Clue earned: position {idx + 1} on a {label} lock is "{char}".',
+            message=f'Clue earned: position {idx + 1} on a {lock_kind_label(slot.kind)} is "{char}".',
             interaction="rfid_reveal",
             reveal={
                 "lock_id": slot.id,
@@ -1604,7 +1672,11 @@ class GameEngine:
             if self._punishment_resolution is not PunishmentResolution.none:
                 result = CodeAttemptResult(
                     ok=False,
-                    message="Wait for the punishment wheel to finish.",
+                    message=(
+                        "Draw a scratch-off card first."
+                        if self._punishment_resolution is PunishmentResolution.luck_test
+                        else "Wait for the punishment wheel to finish."
+                    ),
                     interaction="lock",
                 )
                 self._emit_code_result(result)
@@ -1639,10 +1711,14 @@ class GameEngine:
                     continue
                 if _matches(slot.kind, submitted, slot.code):
                     slot.solved = True
-                    won = all(s.solved for s in self._active)
-                    msg = "Lock opened!"
+                    won = _players_escaped(self._active)
+                    msg = "Lockbox opened!" if slot.kind == "digit4" else "Lock opened!"
                     if won:
-                        msg = "All locks open — you escaped!"
+                        msg = (
+                            "All lockboxes open — you escaped!"
+                            if slot.kind == "digit4"
+                            else "All locks open — you escaped!"
+                        )
                     result = CodeAttemptResult(
                         ok=True,
                         message=msg,
@@ -1654,11 +1730,11 @@ class GameEngine:
                     return result
 
             self._bad_codes_streak += 1
-            triggered = self._bad_codes_wheel_triggered()
+            triggered = self._bad_codes_streak_triggered()
             punishment_event = None
             if triggered:
-                punishment_event = self._spin_punishment_wheel()
-                tail = self._wheel_tail()
+                punishment_event = self._begin_luck_test_locked()
+                tail = self._luck_test_tail()
             else:
                 tail = (
                     f" ({self._bad_codes_meter()}/{BAD_CODE_STREAK_TRIGGER} bad codes — "
@@ -1685,3 +1761,35 @@ class GameEngine:
     def _spin_punishment_wheel(self) -> dict:
         """Pick a wheel entry and start the trump skip window."""
         return self._begin_punishment_resolution_locked(reason="punishment_wheel")
+
+    def _luck_test_tail(self) -> str:
+        return self._format_msg(" Test your luck — draw a scratch-off card from {gm}'s bag.")
+
+    def _begin_luck_test_locked(self) -> dict:
+        """Bad-code streak hit: pause play until the Gamemaster scans the scratch-off result."""
+        self._clear_punishment_resolution_locked()
+        self._punishment_resolution = PunishmentResolution.luck_test
+        return {
+            "type": "luck_test",
+            "message": self._format_msg(
+                "Three bad codes — draw a scratch-off card from {gm}'s bag and test your luck!"
+            ),
+        }
+
+    def _resolve_luck_test_locked(self, *, won: bool) -> tuple[CodeAttemptResult, dict]:
+        """Winning ticket clears the luck test; a losing ticket spins the punishment wheel."""
+        if won:
+            self._clear_punishment_resolution_locked()
+            result = CodeAttemptResult(
+                ok=True,
+                message="Winning ticket — no punishment this time!",
+                interaction="luck_success",
+            )
+            return result, {"type": "luck_test_passed", "message": result.message}
+        wheel = self._spin_punishment_wheel()
+        result = CodeAttemptResult(
+            ok=False,
+            message="Losing ticket!" + self._wheel_tail(),
+            interaction="luck_failure",
+        )
+        return result, wheel

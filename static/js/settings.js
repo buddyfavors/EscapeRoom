@@ -1,13 +1,9 @@
-const ta = document.getElementById("codes-text");
 const taRfid = document.getElementById("rfid-text");
-const btnSave = document.getElementById("btn-save");
-const btnReload = document.getElementById("btn-reload");
 const btnSaveRfid = document.getElementById("btn-save-rfid");
 const btnReloadRfid = document.getElementById("btn-reload-rfid");
 const taPun = document.getElementById("punishments-text");
 const btnSavePun = document.getElementById("btn-save-punishments");
 const btnReloadPun = document.getElementById("btn-reload-punishments");
-const saveMsg = document.getElementById("save-msg");
 const saveMsgRfid = document.getElementById("save-msg-rfid");
 const saveMsgPun = document.getElementById("save-msg-punishments");
 const gmPre = document.getElementById("gm-snapshot");
@@ -19,6 +15,7 @@ const wildcardGoodTag = document.getElementById("wildcard-good-tag");
 const wildcardTrumpTag = document.getElementById("wildcard-trump-tag");
 const gmCompleteTag = document.getElementById("gm-complete-tag");
 const physicalWheel = document.getElementById("physical-wheel");
+const lockboxTagsText = document.getElementById("lockbox-tags-text");
 const btnSaveRoom = document.getElementById("btn-save-room");
 const btnReloadRoom = document.getElementById("btn-reload-room");
 const saveMsgRoom = document.getElementById("save-msg-room");
@@ -28,12 +25,6 @@ function setSaveMsg(el, text, ok) {
   el.classList.remove("ok", "bad");
   if (ok === true) el.classList.add("ok");
   if (ok === false) el.classList.add("bad");
-}
-
-async function loadCodes() {
-  const res = await fetch("/api/codes");
-  const data = await res.json();
-  ta.value = data.text || "";
 }
 
 async function loadRfid() {
@@ -62,23 +53,6 @@ async function postJson(url, body) {
   }
   return data;
 }
-
-btnSave.addEventListener("click", async () => {
-  btnSave.disabled = true;
-  try {
-    await postJson("/api/codes", { text: ta.value });
-    setSaveMsg(saveMsg, "Lock codes saved.", true);
-  } catch (e) {
-    setSaveMsg(saveMsg, String(e.message || e), false);
-  } finally {
-    btnSave.disabled = false;
-  }
-});
-
-btnReload.addEventListener("click", async () => {
-  await loadCodes();
-  setSaveMsg(saveMsg, "Lock codes reloaded from disk.", true);
-});
 
 btnSaveRfid.addEventListener("click", async () => {
   btnSaveRfid.disabled = true;
@@ -180,6 +154,7 @@ async function loadRoomSettings() {
   if (wildcardTrumpTag) wildcardTrumpTag.value = data.wildcard_trump_tag || "";
   if (gmCompleteTag) gmCompleteTag.value = data.gamemaster_complete_tag || "";
   if (physicalWheel) physicalWheel.checked = !!data.physical_wheel;
+  if (lockboxTagsText) lockboxTagsText.value = (data.lockbox_tags || []).join("\n");
 }
 
 if (btnSaveRoom) {
@@ -193,15 +168,27 @@ if (btnSaveRoom) {
       if (!phrases.length) {
         throw new Error("Add at least one bad-scan phrase.");
       }
-      await postJson("/api/room-settings", {
+      const lockboxTags = (lockboxTagsText?.value || "")
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s && !s.startsWith("#"));
+      const data = await postJson("/api/room-settings", {
         gamemaster_name: (gmNameInput?.value || "Gamemaster").trim(),
         bad_scan_phrases: phrases,
         wildcard_free_good_tag: (wildcardGoodTag?.value || "").trim() || null,
         wildcard_trump_tag: (wildcardTrumpTag?.value || "").trim() || null,
         gamemaster_complete_tag: (gmCompleteTag?.value || "").trim() || null,
         physical_wheel: !!physicalWheel?.checked,
+        lockbox_tags: lockboxTags,
       });
-      setSaveMsg(saveMsgRoom, "Room settings saved.", true);
+      const saved = data.settings?.lockbox_tags || [];
+      if (lockboxTagsText) lockboxTagsText.value = saved.join("\n");
+      const dropped = lockboxTags.length - saved.length;
+      let msg = `Room settings saved (${saved.length} lockbox badge${saved.length === 1 ? "" : "s"}).`;
+      if (dropped > 0) {
+        msg += ` Dropped ${dropped} duplicate or invalid lockbox line${dropped === 1 ? "" : "s"}.`;
+      }
+      setSaveMsg(saveMsgRoom, msg, true);
     } catch (e) {
       setSaveMsg(saveMsgRoom, String(e.message || e), false);
     } finally {
@@ -219,7 +206,6 @@ if (btnReloadRoom) {
 
 btnGm.addEventListener("click", refreshGm);
 
-loadCodes();
 loadRfid();
 loadPunishments();
 loadRoomSettings();

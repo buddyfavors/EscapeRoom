@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Gamemaster — Escape Room{% endblock %}
+{% block body_class %}keep-nav{% endblock %}
 {% block content %}
   <section class="panel gm-console-status">
     <div class="gm-console-head">
@@ -29,7 +30,8 @@
     </button>
   </section>
   <section class="gm-console-badges">
-    <button type="button" class="gm-console-badge reward" data-badge="reward" disabled>
+    <button type="button" class="gm-console-badge reward" data-badge="reward" disabled
+      data-luck-title="Ticket won" data-luck-sub="Winning scratch-off — no punishment">
       <span class="gm-console-badge-title">Reward badge</span>
       <span class="gm-console-badge-sub">Same as scanning the reward badge</span>
     </button>
@@ -37,9 +39,14 @@
       <span class="gm-console-badge-title">Skip punishment</span>
       <span class="gm-console-badge-sub">Same as the skip badge</span>
     </button>
-    <button type="button" class="gm-console-badge complete" data-badge="complete" disabled>
+    <button type="button" class="gm-console-badge complete" data-badge="complete" disabled
+      data-luck-title="Ticket lost" data-luck-sub="Losing scratch-off — same as the punishment card">
       <span class="gm-console-badge-title">Complete punishment</span>
       <span class="gm-console-badge-sub">Same as the Gamemaster badge</span>
+    </button>
+    <button type="button" class="gm-console-badge lockbox" data-badge="lockbox" disabled>
+      <span class="gm-console-badge-title">Lockbox opened</span>
+      <span class="gm-console-badge-sub">Same as scanning a lockbox badge</span>
     </button>
   </section>
 
@@ -48,5 +55,5 @@
     <ol id="gmc-log" class="gm-console-log"></ol>
   </section>
 
-  <script src="/static/js/gamemaster.js?v=6"></script>
+  <script src="/static/js/gamemaster.js?v=9"></script>
 {% endblock %}

@@ -33,6 +33,9 @@ class PunishmentResolution(str, Enum):
     """Active punishment wheel flow (all modes)."""
 
     none = "none"
+    # Bad-code streak hit: a player draws a scratch-off card; the Gamemaster scans the
+    # reward badge (win — no punishment) or the Gamemaster badge (loss — wheel spins).
+    luck_test = "luck_test"
     trump_window = "trump_window"
     completing = "completing"
 
@@ -45,12 +48,12 @@ class Difficulty(str, Enum):
     hard = "hard"
 
 
-LockKind = Literal["digit3", "letter5", "digit4"]
+LockKind = Literal["lock4", "digit4"]
 
 # Gamemaster console virtual RFID: normal roll, guaranteed good, or guaranteed bad.
 VirtualScanOutcome = Literal["roll", "good", "bad"]
 # Gamemaster console virtual badges (same effect as the configured physical badge tags).
-VirtualBadge = Literal["reward", "skip", "complete"]
+VirtualBadge = Literal["reward", "skip", "complete", "lockbox"]
 
 # Base RFID luck (same for every tier). Difficulty only changes PRD escalation below.
 RFID_GOOD_PERCENT_BASE = 45
@@ -83,7 +86,7 @@ PUNISHMENT_COMPLETE_SEC = 60
 WHEEL_SPIN_UI_SEC = 4
 
 GAME_MODE_LABELS: dict[GameMode, str] = {
-    GameMode.breakout: "Breakout",
+    GameMode.breakout: "Classic Escape",
     GameMode.deadline: "Deadline",
     GameMode.bounty: "Bounty",
 }
@@ -92,34 +95,11 @@ GAME_MODE_LABELS: dict[GameMode, str] = {
 class LockCounts(BaseModel):
     """How many locks of each kind to use in one game run."""
 
-    digit3: int = Field(default=0, ge=0)
-    letter5: int = Field(default=0, ge=0)
-    digit4: int = Field(default=0, ge=0)
+    lock4: int = Field(default=0, ge=0, description="4-digit combination locks")
+    digit4: int = Field(default=0, ge=0, description="4-digit lockboxes")
 
     def total(self) -> int:
-        return self.digit3 + self.letter5 + self.digit4
-
-
-class CodePools(BaseModel):
-    """All redeemable lock codes loaded from the data file."""
-
-    digit3: list[str] = Field(default_factory=list, description="3-digit combination locks")
-    letter5: list[str] = Field(default_factory=list, description="5-letter combination locks")
-    digit4: list[str] = Field(default_factory=list, description="4-digit lockbox codes")
-
-    @field_validator("digit3", "digit4", mode="before")
-    @classmethod
-    def strip_digit_lists(cls, v):  # noqa: ANN001
-        if not isinstance(v, list):
-            return v
-        return [str(x).strip() for x in v if str(x).strip()]
-
-    @field_validator("letter5", mode="before")
-    @classmethod
-    def strip_upper_letters(cls, v):  # noqa: ANN001
-        if not isinstance(v, list):
-            return v
-        return [str(x).strip().upper() for x in v if str(x).strip()]
+        return self.lock4 + self.digit4
 
 
 class LockSlot(BaseModel):
@@ -148,7 +128,10 @@ class GameSnapshot(BaseModel):
     difficulty: Difficulty
     locks: list[LockSlot]
     started_at_iso: str | None = None
-    won: bool = False
+    won: bool = Field(
+        default=False,
+        description="Breakout: every lockbox open (or every lock, when the game has no lockboxes).",
+    )
     timer_duration_sec: int | None = Field(
         default=None,
         description="Deadline mode: length of each countdown segment in seconds.",
@@ -176,7 +159,7 @@ class GameSnapshot(BaseModel):
     gamemaster_name: str = Field(default="Gamemaster")
     punishment_resolution: PunishmentResolution = Field(
         default=PunishmentResolution.none,
-        description="Trump skip window or punishment completion countdown.",
+        description="Scratch-off luck test, trump skip window, or punishment completion countdown.",
     )
     pending_punishment_label: str | None = Field(default=None)
     pending_punishment_message: str | None = Field(default=None)
@@ -251,7 +234,7 @@ class GameSnapshot(BaseModel):
     )
     bad_codes_goal: int = Field(
         default=3,
-        description="Bad codes before the punishment wheel spins (every 3rd bad; counter never resets mid-game).",
+        description="Bad codes before a scratch-off luck test (every 3rd bad; counter never resets mid-game).",
     )
     punishments_received: int = Field(
         default=0,
@@ -329,6 +312,9 @@ class CodeAttemptResult(BaseModel):
         "wildcard_good",
         "wildcard_trump",
         "reward_badge",
+        "luck_success",
+        "luck_failure",
+        "lockbox_open",
     ] = "lock"
     reveal: dict[str, Any] | None = Field(
         default=None,

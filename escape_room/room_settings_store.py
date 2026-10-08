@@ -27,7 +27,7 @@ class RoomSettings(BaseModel):
     bad_scan_phrases: list[str] = Field(default_factory=lambda: list(DEFAULT_BAD_SCAN_PHRASES))
     wildcard_free_good_tag: str | None = Field(
         default=None,
-        description="10-digit RFID badge — guaranteed good scan once per game.",
+        description="10-digit RFID badge — guaranteed good scan, or a winning scratch-off ticket.",
     )
     wildcard_trump_tag: str | None = Field(
         default=None,
@@ -35,11 +35,21 @@ class RoomSettings(BaseModel):
     )
     gamemaster_complete_tag: str | None = Field(
         default=None,
-        description="10-digit RFID badge — completes pending punishment or triggers immediate punishment.",
+        description=(
+            "10-digit RFID badge (punishment card) — losing scratch-off ticket, completes "
+            "pending punishment, or triggers immediate punishment."
+        ),
     )
     physical_wheel: bool = Field(
         default=False,
         description="Gamemaster spins a real wheel (players roll dice for repeats) instead of the on-screen wheel.",
+    )
+    lockbox_tags: list[str] = Field(
+        default_factory=list,
+        description=(
+            "10-digit RFID badges, one inside each lockbox. Scanning one marks the revealed "
+            "lockbox as open; each badge works once per game."
+        ),
     )
 
     @field_validator("gamemaster_name", mode="before")
@@ -65,6 +75,18 @@ class RoomSettings(BaseModel):
             return None
         tag = normalize_rfid_tag(str(v))
         return tag
+
+    @field_validator("lockbox_tags", mode="before")
+    @classmethod
+    def _normalize_lockbox_tags(cls, v):  # noqa: ANN001
+        if not isinstance(v, list):
+            return []
+        out: list[str] = []
+        for raw in v:
+            tag = normalize_rfid_tag(str(raw))
+            if tag is not None and tag not in out:
+                out.append(tag)
+        return out
 
 
 def load_room_settings(path: Path | None = None) -> RoomSettings:
