@@ -9,30 +9,17 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from escape_room.config import MINIGAMES_ENABLED, RFID_DEVICE_PATH, ROOT_DIR
-from escape_room.game_engine import GameEngine
+from escape_room.game_engine import GameEngine, lock_kind_label
 from escape_room.models import (
-    BountyTheme,
-    CodePools,
-    DEFAULT_GOOD_CODES_PER_REWARD,
-    DEFAULT_FINAL_COUNTDOWN_START_AFTER,
-    DEFAULT_PUNISHMENT_LIMIT,
-    DEFAULT_PUNISHMENT_LIMIT_ENABLED,
     UNLIMITED_PUNISHMENT_LIMIT,
-    DEFAULT_REWARDS_TO_WIN,
-    DEFAULT_RFIDS_PER_PUNISHMENT,
-    DEFAULT_TIMER_MINUTES,
     Difficulty,
     GameMode,
     GameSnapshot,
     LockCounts,
-    LockKind,
     LockSlot,
-    RFID_GOOD_PERCENT,
-    RFID_GOOD_PERCENT_BASE,
-    RFID_PRD_BAD_INCREMENT,
     VirtualBadge,
     VirtualScanOutcome,
 )
@@ -48,7 +35,6 @@ from escape_room.minigames.ws_whack_mole import run_whack_mole_session
 from escape_room.minigames.ws_rps import run_rps_session
 from escape_room.minigames.ws_simon import run_simon_session
 from escape_room.minigames.ws_pattern import run_pattern_session
-from escape_room.storage import load_code_pools, save_code_pools_json, validate_codes_json
 from escape_room.room_settings_store import (
     RoomSettings,
     load_room_settings,
@@ -65,12 +51,11 @@ def _html(request: Request, name: str) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         name,
-        {"minigames_enabled": MINIGAMES_ENABLED},
+        {
+            "minigames_enabled": MINIGAMES_ENABLED,
+            "game_active": state.engine.snapshot() is not None,
+        },
     )
-
-
-class CodesTextBody(BaseModel):
-    text: str
 
 
 class RfidTagsTextBody(BaseModel):
@@ -88,6 +73,7 @@ class RoomSettingsBody(BaseModel):
     wildcard_trump_tag: str | None = None
     gamemaster_complete_tag: str | None = None
     physical_wheel: bool = False
+    lockbox_tags: list[str] = Field(default_factory=list)
 
 
 class VirtualScanBody(BaseModel):
@@ -96,79 +82,6 @@ class VirtualScanBody(BaseModel):
 
 class VirtualBadgeBody(BaseModel):
     badge: VirtualBadge
-
-
-class GameStartBody(BaseModel):
-    game_mode: GameMode = GameMode.breakout
-    difficulty: Difficulty = Difficulty.medium
-    digit3: int | None = Field(default=None, ge=0)
-    letter5: int | None = Field(default=None, ge=0)
-    digit4: int | None = Field(default=None, ge=0)
-    locks: LockCounts | None = None
-    punishment_limit: int | None = Field(default=None, ge=0, le=99)
-    timer_minutes: int | None = Field(default=None, ge=1, le=180)
-    rfids_per_punishment: int | None = Field(default=None, ge=1, le=99)
-    good_codes_per_reward: int | None = Field(default=None, ge=1, le=99)
-    rewards_to_win: int | None = Field(default=None, ge=1, le=99)
-    bounty_theme: BountyTheme = BountyTheme.breakout
-    final_countdown_enabled: bool = False
-    final_countdown_start_after: int | None = Field(default=None, ge=1, le=99)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_lock_fields(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        out = dict(data)
-        nested = out.get("locks")
-        if isinstance(nested, dict):
-            for key in ("digit3", "letter5", "digit4"):
-                if key in nested and out.get(key) is None:
-                    out[key] = nested[key]
-        return out
-
-    def lock_counts(self) -> LockCounts:
-        if self.locks is not None:
-            return self.locks
-        if any(v is not None for v in (self.digit3, self.letter5, self.digit4)):
-            return LockCounts(
-                digit3=0 if self.digit3 is None else self.digit3,
-                letter5=0 if self.letter5 is None else self.letter5,
-                digit4=0 if self.digit4 is None else self.digit4,
-            )
-        return LockCounts()
-
-    def resolved_punishment_limit(self) -> int:
-        if self.game_mode is not GameMode.breakout:
-            return UNLIMITED_PUNISHMENT_LIMIT
-        if self.punishment_limit is not None:
-            return self.punishment_limit
-        return UNLIMITED_PUNISHMENT_LIMIT
-
-    def resolved_timer_minutes(self) -> int:
-        if self.timer_minutes is not None:
-            return self.timer_minutes
-        return DEFAULT_TIMER_MINUTES
-
-    def resolved_rfids_per_punishment(self) -> int:
-        if self.rfids_per_punishment is not None:
-            return self.rfids_per_punishment
-        return DEFAULT_RFIDS_PER_PUNISHMENT
-
-    def resolved_good_codes_per_reward(self) -> int:
-        if self.good_codes_per_reward is not None:
-            return self.good_codes_per_reward
-        return DEFAULT_GOOD_CODES_PER_REWARD
-
-    def resolved_rewards_to_win(self) -> int:
-        if self.rewards_to_win is not None:
-            return self.rewards_to_win
-        return DEFAULT_REWARDS_TO_WIN
-
-    def resolved_final_countdown_start_after(self) -> int:
-        if self.final_countdown_start_after is not None:
-            return self.final_countdown_start_after
-        return DEFAULT_FINAL_COUNTDOWN_START_AFTER
 
 
 def _redact_snapshot(snap: GameSnapshot | None) -> dict[str, Any] | None:
@@ -295,47 +208,10 @@ class AppState:
 state = AppState()
 
 
-def _refresh_code_pools() -> CodePools:
-    """Reload lock code pools from disk and keep the in-memory engine in sync."""
-    pools = load_code_pools()
-    state.engine.set_pools(pools)
-    return pools
-
-
-def _lock_setup_payload() -> dict[str, Any]:
-    """Available pool sizes and default lock counts for the Play screen."""
-    pools = _refresh_code_pools()
-    return {
-        "available": {
-            "digit3": len(pools.digit3),
-            "letter5": len(pools.letter5),
-            "digit4": len(pools.digit4),
-        },
-            "defaults": LockCounts().model_dump(),
-            "default_punishment_limit": DEFAULT_PUNISHMENT_LIMIT,
-            "default_punishment_limit_enabled": DEFAULT_PUNISHMENT_LIMIT_ENABLED,
-            "default_timer_minutes": DEFAULT_TIMER_MINUTES,
-            "default_rfids_per_punishment": DEFAULT_RFIDS_PER_PUNISHMENT,
-            "default_good_codes_per_reward": DEFAULT_GOOD_CODES_PER_REWARD,
-            "default_rewards_to_win": DEFAULT_REWARDS_TO_WIN,
-            "default_final_countdown_start_after": DEFAULT_FINAL_COUNTDOWN_START_AFTER,
-            "gamemaster_name": load_room_settings().gamemaster_name,
-            "game_modes": [m.value for m in GameMode],
-            "bounty_themes": [t.value for t in BountyTheme],
-            "rfid_base_good_percent": RFID_GOOD_PERCENT_BASE,
-            "rfid_prd_increment_percent": {
-                d.value: round(RFID_PRD_BAD_INCREMENT[d] * 100) for d in Difficulty
-            },
-            "rfid_luck": {d.value: RFID_GOOD_PERCENT[d] for d in Difficulty},
-    }
-
-
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     logging.basicConfig(level=logging.INFO)
     state.main_loop = asyncio.get_running_loop()
-    pools = load_code_pools()
-    state.engine.set_pools(pools)
     tags = load_rfid_tags()
     state.engine.set_rfid_tags(tags)
     state.engine.set_punishments(load_punishments())
@@ -367,14 +243,7 @@ app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="stat
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "minigames_enabled": MINIGAMES_ENABLED,
-            "lock_setup": _lock_setup_payload(),
-        },
-    )
+    return _html(request, "index.html")
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -427,26 +296,6 @@ async def minigame_pattern(request: Request) -> HTMLResponse:
     if not MINIGAMES_ENABLED:
         return _html(request, "minigames_disabled.html")
     return _html(request, "pattern.html")
-
-
-@app.get("/api/codes")
-async def get_codes_raw() -> JSONResponse:
-    from escape_room.config import CODES_FILE
-
-    if not CODES_FILE.exists():
-        return JSONResponse(content={"text": "{}"})
-    return JSONResponse(content={"text": CODES_FILE.read_text(encoding="utf-8")})
-
-
-@app.post("/api/codes")
-async def post_codes_raw(body: CodesTextBody) -> JSONResponse:
-    text = body.text
-    ok, err = validate_codes_json(text)
-    if not ok:
-        raise HTTPException(status_code=400, detail=err)
-    pools = save_code_pools_json(text)
-    state.engine.set_pools(pools)
-    return JSONResponse(content={"ok": True})
 
 
 @app.get("/api/rfid-tags")
@@ -513,33 +362,17 @@ async def post_room_settings(body: RoomSettingsBody) -> JSONResponse:
     return JSONResponse(content={"ok": True, "settings": settings.model_dump(mode="json")})
 
 
-def _lock_kind_label(kind: LockKind) -> str:
-    if kind == "digit3":
-        return "3-digit lock"
-    if kind == "digit4":
-        return "4-digit lockbox"
-    if kind == "letter5":
-        return "5-letter lock"
-    return kind
-
-
 def _programming_from_slots(slots: list[LockSlot]) -> list[dict[str, Any]]:
     return [
         {
             "index": i + 1,
             "kind": lock.kind,
-            "kind_label": _lock_kind_label(lock.kind),
+            "kind_label": lock_kind_label(lock.kind),
             "code": lock.code,
             "id": lock.id,
         }
         for i, lock in enumerate(slots)
     ]
-
-
-@app.get("/api/game/setup")
-async def game_setup() -> JSONResponse:
-    """Pool sizes and defaults for the start-game form."""
-    return JSONResponse(content=_lock_setup_payload())
 
 
 @app.get("/api/game/status")
@@ -585,10 +418,9 @@ async def gm_virtual_badge(body: VirtualBadgeBody) -> JSONResponse:
 
 
 @app.post("/api/game/preview")
-async def game_preview(body: GameStartBody) -> JSONResponse:
+async def game_preview(counts: LockCounts) -> JSONResponse:
     """Roll lock combinations for the Gamemaster before starting; start() reuses this preview."""
     try:
-        counts = body.lock_counts()
         slots = state.engine.preview_locks(counts)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -602,20 +434,13 @@ async def game_preview(body: GameStartBody) -> JSONResponse:
 
 
 @app.post("/api/game/start")
-async def game_start(body: GameStartBody) -> JSONResponse:
+async def game_start(counts: LockCounts) -> JSONResponse:
     try:
         snap = state.engine.start(
-            body.difficulty,
-            body.lock_counts(),
-            body.resolved_punishment_limit(),
-            game_mode=body.game_mode,
-            timer_minutes=body.resolved_timer_minutes(),
-            rfids_per_punishment=body.resolved_rfids_per_punishment(),
-            good_codes_per_reward=body.resolved_good_codes_per_reward(),
-            rewards_to_win=body.resolved_rewards_to_win(),
-            bounty_theme=body.bounty_theme,
-            final_countdown_enabled=body.final_countdown_enabled,
-            final_countdown_start_after=body.resolved_final_countdown_start_after(),
+            Difficulty.medium,
+            counts,
+            UNLIMITED_PUNISHMENT_LIMIT,
+            game_mode=GameMode.breakout,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

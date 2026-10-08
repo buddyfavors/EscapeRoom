@@ -9,7 +9,7 @@ const actionButtons = Array.from(document.querySelectorAll(".gm-console-btn[data
 const badgeButtons = Array.from(document.querySelectorAll(".gm-console-badge[data-badge]"));
 
 const MODE_LABELS = {
-  breakout: "Breakout",
+  breakout: "Classic Escape",
   deadline: "Deadline",
   bounty: "Bounty",
 };
@@ -30,6 +30,9 @@ function formatTimer(sec) {
 
 function pendingText(snap) {
   if (!snap || !snap.punishment_resolution || snap.punishment_resolution === "none") return "";
+  if (snap.punishment_resolution === "luck_test") {
+    return "Scratch-off pending — scan the reward badge if the ticket wins, or the punishment card if it loses.";
+  }
   const label = snap.pending_punishment_label || "Punishment";
   const msg = snap.pending_punishment_message && snap.pending_punishment_message !== label
     ? ` — ${snap.pending_punishment_message}`
@@ -80,6 +83,7 @@ function stateFor(snap) {
   if (!snap) return { label: "Idle", cls: "idle" };
   if (isTrue(snap.gm_won)) return { label: `${snap.gamemaster_name || "Gamemaster"} wins`, cls: "bad" };
   if (isTrue(snap.won)) return { label: snap.game_mode === "breakout" ? "Escaped" : "Players win", cls: "ok" };
+  if (snap.punishment_resolution === "luck_test") return { label: "Scratch-off pending", cls: "warn" };
   if (snap.punishment_resolution && snap.punishment_resolution !== "none") {
     return { label: "Punishment pending", cls: "bad" };
   }
@@ -125,6 +129,11 @@ function renderStats(snap) {
     }
     items.push(stat("Codes revealed", `${revealed} / ${locks.length}`, revealed === locks.length && locks.length ? "ok" : ""));
     items.push(stat("Clues revealed", `${shown} / ${total}`));
+    const lockboxes = locks.filter((l) => l.kind === "digit4");
+    if (lockboxes.length) {
+      const open = lockboxes.filter((l) => l.solved).length;
+      items.push(stat("Lockboxes open", `${open} / ${lockboxes.length}`, open === lockboxes.length ? "ok" : ""));
+    }
   }
 
   if (mode === "bounty") {
@@ -168,14 +177,38 @@ function syncTimer(snap) {
   renderTimer();
 }
 
+function syncBadgeLabel(btn, luck) {
+  if (!btn.dataset.luckTitle) return;
+  const titleEl = btn.querySelector(".gm-console-badge-title");
+  const subEl = btn.querySelector(".gm-console-badge-sub");
+  if (titleEl && btn.dataset.defaultTitle === undefined) btn.dataset.defaultTitle = titleEl.textContent;
+  if (subEl && btn.dataset.defaultSub === undefined) btn.dataset.defaultSub = subEl.textContent;
+  if (titleEl) titleEl.textContent = luck ? btn.dataset.luckTitle : btn.dataset.defaultTitle;
+  if (subEl) subEl.textContent = luck ? btn.dataset.luckSub : btn.dataset.defaultSub;
+}
+
+function hasOpenableLockbox(snap) {
+  if (!snap || snap.game_mode !== "breakout") return false;
+  return (snap.locks || []).some(
+    (l) => l.kind === "digit4" && !l.solved && (l.clues || []).some((c) => c != null && c !== "")
+  );
+}
+
 function syncButtons() {
   const snap = currentSnap;
-  const pending = !!(snap && snap.punishment_resolution && snap.punishment_resolution !== "none");
+  const resolution = (snap && snap.punishment_resolution) || "none";
+  const pending = resolution !== "none";
+  const luck = resolution === "luck_test";
   const usable = !!snap && !isTrue(snap.game_over) && !pending;
   for (const btn of actionButtons) btn.disabled = busy || !usable;
   for (const btn of badgeButtons) {
-    const ok = btn.dataset.badge === "reward" ? usable : pending;
+    let ok;
+    if (btn.dataset.badge === "reward") ok = usable || luck;
+    else if (btn.dataset.badge === "skip") ok = pending && !luck;
+    else if (btn.dataset.badge === "lockbox") ok = usable && hasOpenableLockbox(snap);
+    else ok = pending;
     btn.disabled = busy || !ok;
+    syncBadgeLabel(btn, luck);
   }
 }
 
@@ -211,6 +244,9 @@ function applyWsMessage(msg) {
       break;
     case "code_result":
       if (msg.result) addLog(msg.result.message, toneForResult(msg.result));
+      break;
+    case "luck_test":
+      addLog("Scratch-off time — scan the reward badge if the ticket wins, or the punishment card if it loses.", "bad");
       break;
     case "punishment_wheel": {
       const p = msg.punishment || {};

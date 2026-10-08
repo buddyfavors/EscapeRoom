@@ -1,215 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Play — Escape Room{% endblock %}
 {% block content %}
-  {% set avail = lock_setup.available %}
-  {% set defs = lock_setup.defaults %}
-  <div id="banner" class="banner" role="status" aria-live="polite"></div>
-  <section id="overview-view" class="panel kiosk-hero">
-    <h1>Escape Room</h1>
-    <p class="lede">
-      Pick a <strong>game mode</strong>, tune the settings, then start. Every mode uses the same RFID luck
-      (45% good / 55% bad base) and <strong>PRD tier</strong> for how fast bad odds climb after good scans.
-    </p>
+  <div id="banner" class="play-banner" role="status" aria-live="polite"></div>
+  <section id="overview-view" class="start-view">
+    <button id="btn-play" type="button" class="gm-console-btn start">
+      <span class="gm-console-btn-title">Start</span>
+      <span class="gm-console-btn-sub">Pick locks and begin a new game</span>
+    </button>
+    {% if minigames_enabled %}
+      <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
+    {% endif %}
+  </section>
 
-    <fieldset class="game-mode-picks">
-      <legend>Game mode</legend>
-      <label class="mode-card">
-        <input type="radio" name="game_mode" value="breakout" checked />
-        <span class="mode-card-body">
-          <strong>Breakout</strong>
-          <span class="muted">Classic escape — crack the locks before time runs out or the Gamemaster wins.</span>
-        </span>
-      </label>
-      <label class="mode-card">
-        <input type="radio" name="game_mode" value="deadline" />
-        <span class="mode-card-body">
-          <strong>Deadline</strong>
-          <span class="muted">Race the clock — when time runs out the wheel spins. Earn RFIDs, scan them in, repeat.</span>
-        </span>
-      </label>
-      <label class="mode-card">
-        <input type="radio" name="game_mode" value="bounty" />
-        <span class="mode-card-body">
-          <strong>Bounty</strong>
-          <span class="muted">Scan the reward badge for RFID batches — good rolls earn rewards until you hit your goal.</span>
-        </span>
-      </label>
-    </fieldset>
-
-    <div id="mode-breakout-settings">
-      <fieldset class="lock-picks">
-        <legend>Locks in this game</legend>
-        <p class="muted lock-picks-hint">How many of each lock type do you want to play with? Pick at least one lock total.</p>
-        <div class="lock-pick-row">
-          <label for="lock-digit3">3-digit locks</label>
-          <button
-            type="button"
-            class="lock-step-btn"
-            data-lock-kind="digit3"
-            data-delta="-1"
-            id="lock-digit3-minus"
-            aria-label="Decrease 3-digit locks"
-            {% if avail.digit3 == 0 %}disabled{% endif %}
-          >-</button>
-          <input id="lock-digit3" class="lock-count-input" type="number" min="0" max="{{ avail.digit3 }}" value="{{ [defs.digit3, avail.digit3]|min }}"{% if avail.digit3 == 0 %} disabled{% endif %} readonly />
-          <button
-            type="button"
-            class="lock-step-btn"
-            data-lock-kind="digit3"
-            data-delta="1"
-            id="lock-digit3-plus"
-            aria-label="Increase 3-digit locks"
-            {% if avail.digit3 == 0 %}disabled{% endif %}
-          >+</button>
-          <span id="avail-digit3" class="muted">{% if avail.digit3 == 0 %}none available{% elif avail.digit3 == 1 %}max 1{% else %}max {{ avail.digit3 }}{% endif %}</span>
-        </div>
-        <div class="lock-pick-row">
-          <label for="lock-letter5">5-letter locks</label>
-          <button
-            type="button"
-            class="lock-step-btn"
-            data-lock-kind="letter5"
-            data-delta="-1"
-            id="lock-letter5-minus"
-            aria-label="Decrease 5-letter locks"
-            {% if avail.letter5 == 0 %}disabled{% endif %}
-          >-</button>
-          <input id="lock-letter5" class="lock-count-input" type="number" min="0" max="{{ avail.letter5 }}" value="{{ [defs.letter5, avail.letter5]|min }}"{% if avail.letter5 == 0 %} disabled{% endif %} readonly />
-          <button
-            type="button"
-            class="lock-step-btn"
-            data-lock-kind="letter5"
-            data-delta="1"
-            id="lock-letter5-plus"
-            aria-label="Increase 5-letter locks"
-            {% if avail.letter5 == 0 %}disabled{% endif %}
-          >+</button>
-          <span id="avail-letter5" class="muted">{% if avail.letter5 == 0 %}none available{% elif avail.letter5 == 1 %}max 1{% else %}max {{ avail.letter5 }}{% endif %}</span>
-        </div>
-        <div class="lock-pick-row">
-          <label for="lock-digit4">4-digit lockboxes</label>
-          <button
-            type="button"
-            class="lock-step-btn"
-            data-lock-kind="digit4"
-            data-delta="-1"
-            id="lock-digit4-minus"
-            aria-label="Decrease 4-digit lockboxes"
-            {% if avail.digit4 == 0 %}disabled{% endif %}
-          >-</button>
-          <input id="lock-digit4" class="lock-count-input" type="number" min="0" max="{{ avail.digit4 }}" value="{{ [defs.digit4, avail.digit4]|min }}"{% if avail.digit4 == 0 %} disabled{% endif %} readonly />
-          <button
-            type="button"
-            class="lock-step-btn"
-            data-lock-kind="digit4"
-            data-delta="1"
-            id="lock-digit4-plus"
-            aria-label="Increase 4-digit lockboxes"
-            {% if avail.digit4 == 0 %}disabled{% endif %}
-          >+</button>
-          <span id="avail-digit4" class="muted">{% if avail.digit4 == 0 %}none available{% elif avail.digit4 == 1 %}max 1{% else %}max {{ avail.digit4 }}{% endif %}</span>
-        </div>
-      </fieldset>
+  <div id="setup-modal" class="modal-overlay" hidden aria-modal="true" role="dialog" aria-labelledby="setup-modal-title">
+    <div class="setup-modal-card">
+      <h2 id="setup-modal-title">How many locks?</h2>
+      <p class="muted lock-picks-hint">
+        Pick at least one lock total. Lock clues are earned first, then lockboxes. With lockboxes in play,
+        players scan the badge inside each one to open it — the game ends when every lockbox is open.
+      </p>
+      <div class="lock-pick-row">
+        <label for="lock-lock4">4-digit locks</label>
+        <button type="button" class="lock-step-btn" data-lock-kind="lock4" data-delta="-1" aria-label="Decrease 4-digit locks">-</button>
+        <input id="lock-lock4" class="lock-count-input" type="number" min="0" value="1" readonly />
+        <button type="button" class="lock-step-btn" data-lock-kind="lock4" data-delta="1" aria-label="Increase 4-digit locks">+</button>
+      </div>
+      <div class="lock-pick-row">
+        <label for="lock-digit4">4-digit lockboxes</label>
+        <button type="button" class="lock-step-btn" data-lock-kind="digit4" data-delta="-1" aria-label="Decrease 4-digit lockboxes">-</button>
+        <input id="lock-digit4" class="lock-count-input" type="number" min="0" value="0" readonly />
+        <button type="button" class="lock-step-btn" data-lock-kind="digit4" data-delta="1" aria-label="Increase 4-digit lockboxes">+</button>
+      </div>
 
       <section class="gm-preview-panel">
-        <h2>Gamemaster — program these locks</h2>
+        <h3>Gamemaster — set up these locks</h3>
         <p class="muted gm-preview-hint">
-          Combinations update when you change lock counts. Set each physical lock to match, then Start Game.
+          Combinations are generated at random. Set each physical lock to match, then Start Game.
         </p>
         <div id="gm-preview" class="gm-programming muted">Pick at least one lock to preview combinations.</div>
       </section>
 
-      <fieldset class="punishment-limit" id="punishment-limit-fieldset">
-        <legend>Gamemaster win condition</legend>
-        <p class="muted punishment-limit-hint" id="punishment-limit-hint">
-          Optionally cap wheel punishments — when the limit is reached, the Gamemaster wins and the room fails to escape.
-        </p>
-        <label class="mode-card">
-          <input type="checkbox" id="punishment-limit-enabled" />
-          <span class="mode-card-body">
-            <strong>Limit punishments</strong>
-            <span class="muted">Off by default — the Gamemaster cannot win by punishment count alone.</span>
-          </span>
-        </label>
-        <div class="punishment-limit-row">
-          <label for="punishment-limit">Punishments allowed</label>
-          <input id="punishment-limit" type="number" min="1" max="99" value="{{ lock_setup.default_punishment_limit }}" disabled />
-        </div>
-      </fieldset>
-    </div>
-
-    <div id="mode-deadline-settings" hidden>
-      <fieldset class="deadline-settings">
-        <legend>Deadline settings</legend>
-        <p class="muted">When the timer hits zero, the punishment wheel spins. After the punishment, hand out RFIDs and scan them all before the next countdown.</p>
-        <div class="punishment-limit-row">
-          <label for="timer-minutes">Timer length (minutes)</label>
-          <input id="timer-minutes" type="number" min="1" max="180" value="{{ lock_setup.default_timer_minutes }}" />
-        </div>
-        <div class="punishment-limit-row">
-          <label for="rfids-per-punishment">RFIDs earned after each punishment</label>
-          <input id="rfids-per-punishment" type="number" min="1" max="99" value="{{ lock_setup.default_rfids_per_punishment }}" />
-        </div>
-        <p class="muted rfid-tiers-note">
-          Every 3 bad codes shaves <strong>30 seconds</strong> off the clock instead of spinning the wheel.
-        </p>
-        <fieldset class="final-countdown-settings">
-          <legend>Final Countdown</legend>
-          <label class="mode-card">
-            <input type="checkbox" id="final-countdown-enabled" />
-            <span class="mode-card-body">
-              <strong>Enable Final Countdown</strong>
-              <span class="muted">After a set number of full-length rounds, each new timer is 10% shorter.</span>
-            </span>
-          </label>
-          <div class="punishment-limit-row">
-            <label for="final-countdown-start-after">Full rounds before shrink begins</label>
-            <input id="final-countdown-start-after" type="number" min="1" max="99" value="{{ lock_setup.default_final_countdown_start_after }}" disabled />
-          </div>
-        </fieldset>
-      </fieldset>
-    </div>
-
-    <div id="mode-bounty-settings" hidden>
-      <fieldset class="bounty-settings">
-        <legend>Bounty settings</legend>
-        <p class="muted">Scan the reward badge to receive a batch of RFIDs from the Gamemaster. Good scans in each batch count toward rewards — no locks in this mode.</p>
-        <div class="punishment-limit-row">
-          <label for="rfids-per-bounty-batch">RFIDs per reward badge scan</label>
-          <input id="rfids-per-bounty-batch" type="number" min="1" max="99" value="{{ lock_setup.default_rfids_per_punishment }}" />
-        </div>
-        <div class="punishment-limit-row">
-          <label for="good-codes-per-reward">Good codes per reward</label>
-          <input id="good-codes-per-reward" type="number" min="1" max="99" value="{{ lock_setup.default_good_codes_per_reward }}" />
-        </div>
-        <div class="punishment-limit-row">
-          <label for="rewards-to-win">Rewards to win the game</label>
-          <input id="rewards-to-win" type="number" min="1" max="99" value="{{ lock_setup.default_rewards_to_win }}" />
-        </div>
-        <fieldset class="bounty-theme">
-          <legend>Bad-code style</legend>
-          <label><input type="radio" name="bounty_theme" value="breakout" checked /> Breakout — every 3rd bad code spins the wheel</label>
-          <label><input type="radio" name="bounty_theme" value="deadline" /> Deadline — every 3rd bad code steals one good-code step</label>
-        </fieldset>
-      </fieldset>
-    </div>
-
-    <fieldset class="difficulty">
-      <legend>PRD tier</legend>
-      <p class="muted difficulty-hint">Every tier uses <strong>45% good / 55% bad</strong> on the first scan. Difficulty only changes how fast bad odds climb after good scans.</p>
-      <label><input type="radio" name="difficulty" value="easy" /> Easy — +7% bad per good scan</label>
-      <label><input type="radio" name="difficulty" value="medium" checked /> Medium — +11% bad per good scan</label>
-      <label><input type="radio" name="difficulty" value="hard" /> Hard — +14% bad per good scan</label>
-    </fieldset>
-
-    <div class="actions">
       <p id="setup-error" class="setup-error" hidden role="alert"></p>
-      <button id="btn-play" type="button" class="primary big">Start Game</button>
-      {% if minigames_enabled %}
-        <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
-      {% endif %}
+      <div class="actions setup-modal-actions">
+        <button id="btn-setup-cancel" type="button" class="ghost">Cancel</button>
+        <button id="btn-setup-reroll" type="button" class="ghost">New combinations</button>
+        <button id="btn-setup-start" type="button" class="primary">Start Game</button>
+      </div>
     </div>
-  </section>
+  </div>
 
   <section id="active-view" class="panel kiosk-hero" hidden>
     <div class="active-head">
@@ -241,7 +79,7 @@
         <div
           id="bad-codes-pill"
           class="strike-pill bad-pill"
-          title="Bad RFID punishments and wrong lock tries add up — never resets."
+          title="Bad RFID punishments and wrong lock tries add up — every 3rd means drawing a scratch-off card."
         >
           <span class="strike-label">Bad codes</span>
           <span id="bad-codes-dots" class="strike-dots"></span>
@@ -284,20 +122,17 @@
         <p class="wheel-modal-kicker">Wheel of punishments</p>
       </div>
       <div id="wheel-result-stage" hidden>
-        <p class="wheel-modal-kicker" id="wheel-result-kicker">Your punishment</p>
+        <p class="wheel-modal-kicker" id="wheel-result-kicker">Punishment</p>
         <h2 id="wheel-punishment-label" class="wheel-punishment-label"></h2>
         <p id="wheel-punishment-text" class="wheel-punishment-text"></p>
         <div class="wheel-countdown" hidden>
           <span id="wheel-countdown-num" class="wheel-countdown-num">60</span>
           <span class="wheel-countdown-unit">s</span>
         </div>
-        <p id="wheel-countdown-hint" class="muted wheel-countdown-hint">
-          Scan your skip badge to skip, or scan the Gamemaster complete badge when done.
-        </p>
+        <p id="wheel-countdown-hint" class="muted wheel-countdown-hint" hidden></p>
       </div>
     </div>
   </div>
 
-  <script type="application/json" id="lock-setup-data">{{ lock_setup | tojson }}</script>
-  <script src="/static/js/app.js?v=29"></script>
+  <script src="/static/js/app.js?v=36"></script>
 {% endblock %}

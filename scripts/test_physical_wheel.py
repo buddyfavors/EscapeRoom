@@ -9,14 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from escape_room.game_engine import GameEngine
-from escape_room.models import CodePools, Difficulty, GameMode, GamePhase, LockCounts, PunishmentResolution
+from escape_room.models import Difficulty, GameMode, GamePhase, LockCounts, PunishmentResolution
 from escape_room.punishments_store import PunishmentEntry
 from escape_room.room_settings_store import RoomSettings, load_room_settings, save_room_settings
 
 
 def _engine(events: list[dict]) -> GameEngine:
     engine = GameEngine()
-    engine.set_pools(CodePools(digit3=["123"]))
     engine.set_punishments([PunishmentEntry(raw="Ten push-ups", kind="text", target="Ten push-ups", message="Ten push-ups")])
     engine.set_room_settings(RoomSettings(gamemaster_name="GM", physical_wheel=True))
     engine.subscribe(events.append)
@@ -26,11 +25,16 @@ def _engine(events: list[dict]) -> GameEngine:
 def test_breakout_physical_wheel() -> None:
     events: list[dict] = []
     engine = _engine(events)
-    engine.start(Difficulty.medium, LockCounts(digit3=1), game_mode=GameMode.breakout)
+    engine.start(Difficulty.medium, LockCounts(lock4=1), game_mode=GameMode.breakout)
 
     for _ in range(3):
         last = engine.submit_virtual_rfid("bad")
-    assert "GM spins the wheel" in last.message, last
+    assert "scratch-off" in last.message, last
+    assert engine.snapshot().punishment_resolution is PunishmentResolution.luck_test
+    assert not any(e["type"] == "punishment_wheel" for e in events)
+
+    lost = engine.submit_virtual_badge("complete")
+    assert lost.interaction == "luck_failure" and "GM spins the wheel" in lost.message, lost
 
     wheel = next(e for e in events if e["type"] == "punishment_wheel")
     assert wheel["physical"] is True

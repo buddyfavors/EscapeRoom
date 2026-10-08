@@ -7,7 +7,6 @@ from escape_room.rfid_common import DEFAULT_LINUX_DEVICE_PATH
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
-CODES_FILE = DATA_DIR / "codes.json"
 RFID_TAGS_FILE = DATA_DIR / "rfid_tags.txt"
 PUNISHMENTS_FILE = DATA_DIR / "punishments.txt"
 ROOM_SETTINGS_FILE = DATA_DIR / "room_settings.json"

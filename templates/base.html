@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Escape Room{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=18" />
+    <link rel="stylesheet" href="/static/css/style.css?v=21" />
     {% block extra_css %}{% endblock %}
   </head>
-  <body>
+  <body class="{% block body_class %}{% endblock %}{% if game_active %} game-active{% endif %}">
     <header class="topbar">
       <div class="brand">KnottyBytes Escape Room</div>
       <nav class="nav">
@@ -21,7 +21,7 @@
       </nav>
     </header>
     <main class="container">{% block content %}{% endblock %}</main>
-    <script src="/static/js/nav.js"></script>
+    <script src="/static/js/nav.js?v=2"></script>
     <script src="/static/js/minigame_return.js"></script>
   </body>
 </html>

@@ -1,32 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Settings — Escape Room{% endblock %}
+{% block body_class %}keep-nav{% endblock %}
 {% block content %}
   <section class="panel">
     <h1>Settings</h1>
-    <p class="lede">
-      Edit lock code pools as JSON. Keys: <code>digit3</code> (3 digits), <code>letter5</code> (5 letters),
-      <code>digit4</code> (4 digits). Any pool may be an empty array <code>[]</code> if you are not using
-      that lock type — pick counts on the Play screen up to how many codes you list here.
-    </p>
-
-    <label for="codes-text" class="label">Code pools (JSON)</label>
-    <textarea id="codes-text" class="codes" spellcheck="false"></textarea>
-
-    <div class="actions">
-      <button id="btn-save" type="button" class="primary">Save lock codes</button>
-      <button id="btn-reload" type="button" class="ghost">Reload lock codes</button>
-    </div>
-    <div id="save-msg" class="banner" role="status"></div>
-  </section>
-
-  <section class="panel">
     <h2>RFID tags</h2>
     <p class="lede">
       One 10-digit tag ID per line (leading zeros count). Blank lines and lines starting with
       <code>#</code> are ignored. When a listed tag is scanned the engine randomly decides whether it's
       a <strong>good</strong> scan (reveals one character on a random unsolved lock) or a
-      <strong>bad</strong> scan (Gamemaster punishment). Harder difficulties bias the roll toward
-      bad. Each tag can be used once per run. <strong>Save tags</strong> removes duplicate lines
+      <strong>bad</strong> scan (Gamemaster punishment). Each tag can be used once per run. <strong>Save tags</strong> removes duplicate lines
       (same ID listed twice) and reloads the editor so you only see unique IDs. On the Pi, the
       reader sometimes fires twice in a row — the listener drops identical scans within about a second.
     </p>
@@ -45,10 +28,14 @@
       Customize the <strong>Gamemaster</strong> name shown in messages. Bad-scan phrases use
       <code>{gm}</code> as a placeholder. Configure two special 10-digit RFID badges: one for the
       reward badge, one for the skip badge (scan while a punishment is pending).
-      In <strong>Breakout</strong> and <strong>Deadline</strong>, the reward badge grants one guaranteed
-      good scan (60-second cooldown). In <strong>Bounty</strong>, it starts a batch — the Gamemaster
-      hands out the configured number of RFIDs for normal good/bad scanning. You can also configure a
-      Gamemaster badge.
+      The reward badge grants one guaranteed good scan (60-second cooldown). You can also configure a
+      Gamemaster badge, which doubles as the <strong>punishment card</strong>.
+    </p>
+    <p class="lede">
+      <strong>Scratch-off tickets:</strong> after every third bad code, play pauses and a player draws a
+      scratch-off card from the Gamemaster's bag. A winning ticket means the Gamemaster scans the
+      <strong>reward badge</strong> — no punishment. A losing ticket means the Gamemaster scans the
+      <strong>punishment card</strong> (Gamemaster badge) and the wheel of punishments takes over as usual.
     </p>
     <label for="gm-name" class="label">Gamemaster name</label>
     <input id="gm-name" type="text" class="text-input" maxlength="40" placeholder="Gamemaster" />
@@ -57,7 +44,7 @@
     <textarea id="bad-phrases-text" class="codes" spellcheck="false" placeholder="Bad scan — {gm} laughs."></textarea>
 
     <div class="punishment-limit-row">
-      <label for="wildcard-good-tag">Reward badge — good scan (Breakout/Deadline) or RFID batch (Bounty)</label>
+      <label for="wildcard-good-tag">Reward badge — guaranteed good scan, or a winning scratch-off ticket</label>
       <input id="wildcard-good-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
     <div class="punishment-limit-row">
@@ -65,9 +52,18 @@
       <input id="wildcard-trump-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
     <div class="punishment-limit-row">
-      <label for="gm-complete-tag">Gamemaster badge — complete pending punishment or trigger immediate punishment</label>
+      <label for="gm-complete-tag">Gamemaster badge (punishment card) — losing scratch-off ticket, complete pending punishment, or trigger immediate punishment</label>
       <input id="gm-complete-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
+
+    <label for="lockbox-tags-text" class="label">Lockbox badges (one per line)</label>
+    <p class="muted">
+      Put one badge inside each lockbox. Lockbox codes are revealed after every regular lock. Once players open a
+      lockbox, they scan its badge and the screen marks the lockbox open. The game ends when every lockbox is open.
+      Badges are interchangeable — any of them opens the lockbox whose code was revealed first — and each badge works
+      once per game. Don't list these in the RFID tag list above.
+    </p>
+    <textarea id="lockbox-tags-text" class="codes" spellcheck="false" placeholder="0011182827&#10;0004473485"></textarea>
 
     <label class="mode-card physical-wheel-toggle">
       <input type="checkbox" id="physical-wheel" />
@@ -91,7 +87,8 @@
   <section class="panel">
     <h2>Wheel of punishments</h2>
     <p class="lede">
-      After <strong>every third bad code</strong> (wrong lock combinations and/or bad RFID punishment rolls; the counter never resets), the wheel spins and one line below is
+      After <strong>every third bad code</strong> (wrong lock combinations and/or bad RFID punishment rolls; the counter never resets), a player draws a
+      scratch-off card. If the ticket loses and the Gamemaster scans the punishment card, the wheel spins and one line below is
       chosen at random — <strong>no punishment repeats</strong> in the same game. Lines starting with <code>minigame</code> launch a minigame (use
       <code>minigame</code> for random, or <code>minigame:&lt;slug&gt;</code> for a specific one —
       <code>reaction-rush</code>, <code>whack-mole</code>, <code>rps</code>, <code>simon</code>,
@@ -138,10 +135,11 @@
         matches the same reader via a HID path substring or <code>VID_xxxx&amp;PID_yyyy</code> — check the server
         log on startup if auto-detection fails.
       </li>
-      <li>Readers send digits only; tags are ten-digit IDs. Letter-lock <em>combinations</em> are still letters — clues reveal one letter at a time on the player display.</li>
+      <li>Readers send digits only; tags are ten-digit IDs.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
-      <li><strong>Breakout</strong> — locks + wheel on every 3rd bad code. <strong>Deadline</strong> — timer punishments + 30s time shave on bad codes. <strong>Bounty</strong> — reward badge grants RFID batches; good scans earn rewards, no locks.</li>
-      <li>RFID: 45% good / 55% bad base on every tier. Easy +7%, Medium +11%, Hard +14% PRD per good scan (cap 92% bad).</li>
+      <li>Classic escape — 4-digit locks and lockboxes with random combinations; every 3rd bad code means a scratch-off card, and a losing ticket spins the wheel.</li>
+      <li>Lock clues are always earned before lockbox clues. With lockboxes in play, the game ends when every lockbox badge has been scanned.</li>
+      <li>RFID: 45% good / 55% bad base, +11% bad per consecutive good scan (cap 92% bad).</li>
       {% if minigames_enabled %}
         <li>After every <strong>three</strong> good RFID rolls (bad punishment rolls do not count), a minigame is forced.</li>
       {% endif %}
@@ -152,5 +150,5 @@
     </ul>
   </section>
 
-  <script src="/static/js/settings.js?v=3"></script>
+  <script src="/static/js/settings.js?v=5"></script>
 {% endblock %}

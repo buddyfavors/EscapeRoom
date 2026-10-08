@@ -10,7 +10,6 @@ sys.path.insert(0, str(ROOT))
 from escape_room.game_engine import BAD_CODE_STREAK_TRIGGER, GameEngine
 from escape_room.models import (
     BountyTheme,
-    CodePools,
     Difficulty,
     GameMode,
     GamePhase,
@@ -23,7 +22,6 @@ from escape_room.room_settings_store import RoomSettings
 
 def _engine() -> GameEngine:
     engine = GameEngine()
-    engine.set_pools(CodePools(digit3=["123", "456"], letter5=["APPLE"], digit4=["9876"]))
     engine.set_rfid_tags(RfidTagFile(tags=[]))
     engine.set_room_settings(RoomSettings(gamemaster_name="GM", wildcard_free_good_tag="0012217025"))
     return engine
@@ -31,7 +29,7 @@ def _engine() -> GameEngine:
 
 def test_breakout_virtual_scans() -> None:
     engine = _engine()
-    engine.start(Difficulty.hard, LockCounts(digit3=1, letter5=1), game_mode=GameMode.breakout)
+    engine.start(Difficulty.hard, LockCounts(lock4=1, digit4=1), game_mode=GameMode.breakout)
 
     for _ in range(4):
         reward = engine.submit_virtual_rfid("good")
@@ -50,7 +48,7 @@ def test_breakout_virtual_scans() -> None:
         assert not punish.ok and punish.interaction == "rfid_punishment", punish
     snap = engine.snapshot()
     assert snap is not None
-    assert snap.punishment_resolution is PunishmentResolution.trump_window, (start_bad, snap)
+    assert snap.punishment_resolution is PunishmentResolution.luck_test, (start_bad, snap)
 
     blocked = engine.submit_virtual_rfid("good")
     assert blocked.interaction == "rfid_punishment"
@@ -101,15 +99,17 @@ def test_bounty_virtual_scans_follow_batch_rules() -> None:
 def _trigger_wheel(engine: GameEngine) -> None:
     while engine.snapshot().punishment_resolution is PunishmentResolution.none:
         engine.submit_virtual_rfid("bad")
+    if engine.snapshot().punishment_resolution is PunishmentResolution.luck_test:
+        engine.submit_virtual_badge("complete")
+    assert engine.snapshot().punishment_resolution is PunishmentResolution.trump_window
 
 
 def test_virtual_badges_skip_and_complete() -> None:
     engine = GameEngine()
-    engine.set_pools(CodePools(digit3=["123"]))
     engine.set_room_settings(RoomSettings(gamemaster_name="GM"))
     events: list[dict] = []
     engine.subscribe(events.append)
-    engine.start(Difficulty.medium, LockCounts(digit3=1), game_mode=GameMode.breakout)
+    engine.start(Difficulty.medium, LockCounts(lock4=1), game_mode=GameMode.breakout)
 
     nothing = engine.submit_virtual_badge("complete")
     assert not nothing.ok and "no punishment pending" in nothing.message.lower(), nothing
@@ -149,7 +149,6 @@ def test_virtual_reward_badge_without_configured_tag() -> None:
 
 def test_physical_badges_unchanged() -> None:
     engine = GameEngine()
-    engine.set_pools(CodePools(digit3=["123"]))
     engine.set_rfid_tags(RfidTagFile(tags=["0000000001"]))
     engine.set_room_settings(
         RoomSettings(
@@ -158,7 +157,7 @@ def test_physical_badges_unchanged() -> None:
             gamemaster_complete_tag="0000000003",
         )
     )
-    engine.start(Difficulty.medium, LockCounts(digit3=1), game_mode=GameMode.breakout)
+    engine.start(Difficulty.medium, LockCounts(lock4=1), game_mode=GameMode.breakout)
 
     immediate = engine.submit_code("0000000003")
     assert immediate.interaction == "rfid_punishment", immediate
