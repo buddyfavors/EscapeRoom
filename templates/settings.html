@@ -56,12 +56,13 @@
       <input id="gm-complete-tag" type="text" class="text-input" maxlength="10" placeholder="10-digit tag ID" />
     </div>
 
-    <label for="lockbox-tags-text" class="label">Lockbox badges (one per line)</label>
+    <label for="lockbox-tags-text" class="label">Lockbox rewards (one per line)</label>
     <p class="muted">
-      Put one badge inside each lockbox. Lockbox codes are revealed after every regular lock. Once players open a
-      lockbox, they scan its badge and the screen marks the lockbox open. The game ends when every lockbox is open.
-      Badges are interchangeable — any of them opens the lockbox whose code was revealed first — and each badge works
-      once per game. Don't list these in the RFID tag list above.
+      Put one reward (RFID fob or badge) inside each lockbox. Lockbox codes are revealed after every regular lock.
+      Once players open a lockbox, they scan its reward and the screen marks the lockbox open. The game ends when every
+      lockbox is open. In a game with no lockboxes, each lock is treated as a box with a reward inside. Rewards are
+      interchangeable — any of them opens the lock whose code was revealed first — and each reward works once per game.
+      Don't list these in the RFID tag list above.
     </p>
     <textarea id="lockbox-tags-text" class="codes" spellcheck="false" placeholder="0011182827&#10;0004473485"></textarea>
 
@@ -138,7 +139,7 @@
       <li>Readers send digits only; tags are ten-digit IDs.</li>
       <li>Each tag is one use per run. Unknown tags are rejected and not consumed.</li>
       <li>Classic escape — 4-digit locks and lockboxes with random combinations; every 3rd bad code means a scratch-off card, and a losing ticket spins the wheel.</li>
-      <li>Lock clues are always earned before lockbox clues. With lockboxes in play, the game ends when every lockbox badge has been scanned.</li>
+      <li>Lock clues are always earned before lockbox clues. The game ends when every lockbox reward has been scanned (or every lock's reward, with no lockboxes).</li>
       <li>RFID: 45% good / 55% bad base, +11% bad per consecutive good scan (cap 92% bad).</li>
       {% if minigames_enabled %}
         <li>After every <strong>three</strong> good RFID rolls (bad punishment rolls do not count), a minigame is forced.</li>
@@ -150,5 +151,5 @@
     </ul>
   </section>
 
-  <script src="/static/js/settings.js?v=5"></script>
+  <script src="/static/js/settings.js?v=6"></script>
 {% endblock %}

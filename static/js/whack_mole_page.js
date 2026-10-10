@@ -132,7 +132,7 @@
       if (msg.type === "over") {
         grid.clearAll();
         stopTimerAnim();
-        setStatus(msg.won ? "Crew wins!" : "Gamemaster wins.", msg.won ? "good" : "bad");
+        setStatus(msg.won ? "Players win!" : "Gamemaster wins.", msg.won ? "good" : "bad");
         sfx(msg.won ? "whackWin" : "whackLose");
         log(
           "Score <strong>" +
@@ -147,7 +147,7 @@
         if (window.MinigameReturn && window.MinigameReturn.isForced()) {
           window.MinigameReturn.scheduleReturn({
             seconds: 60,
-            headline: msg.won ? "Crew cleared the moles." : "Whack-a-Mole: the Gamemaster won.",
+            headline: msg.won ? "Players cleared the moles." : "Whack-a-Mole: the Gamemaster won.",
           });
         }
         return;
