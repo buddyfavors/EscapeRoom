@@ -184,7 +184,7 @@ if (btnSaveRoom) {
       const saved = data.settings?.lockbox_tags || [];
       if (lockboxTagsText) lockboxTagsText.value = saved.join("\n");
       const dropped = lockboxTags.length - saved.length;
-      let msg = `Room settings saved (${saved.length} lockbox badge${saved.length === 1 ? "" : "s"}).`;
+      let msg = `Room settings saved (${saved.length} lockbox reward${saved.length === 1 ? "" : "s"}).`;
       if (dropped > 0) {
         msg += ` Dropped ${dropped} duplicate or invalid lockbox line${dropped === 1 ? "" : "s"}.`;
       }

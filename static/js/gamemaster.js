@@ -82,7 +82,7 @@ function toneForResult(r) {
 function stateFor(snap) {
   if (!snap) return { label: "Idle", cls: "idle" };
   if (isTrue(snap.gm_won)) return { label: `${snap.gamemaster_name || "Gamemaster"} wins`, cls: "bad" };
-  if (isTrue(snap.won)) return { label: snap.game_mode === "breakout" ? "Escaped" : "Players win", cls: "ok" };
+  if (isTrue(snap.won)) return { label: snap.game_mode === "breakout" ? "Prisoner freed" : "Players win", cls: "ok" };
   if (snap.punishment_resolution === "luck_test") return { label: "Scratch-off pending", cls: "warn" };
   if (snap.punishment_resolution && snap.punishment_resolution !== "none") {
     return { label: "Punishment pending", cls: "bad" };
@@ -106,7 +106,7 @@ function renderStats(snap) {
   const items = [];
   const badGoal = Math.max(1, Number(snap.bad_codes_goal) || 3);
   const badNow = Math.max(0, Number(snap.bad_codes_progress) || 0);
-  items.push(stat("Bad codes", `${badNow} / ${badGoal}`, badNow >= badGoal - 1 && badNow > 0 ? "bad" : ""));
+  items.push(stat("Broken clues", `${badNow} / ${badGoal}`, badNow >= badGoal - 1 && badNow > 0 ? "bad" : ""));
 
   const limit = Number(snap.punishments_limit) || 0;
   const received = Math.max(0, Number(snap.punishments_received) || 0);
@@ -138,7 +138,7 @@ function renderStats(snap) {
 
   if (mode === "bounty") {
     items.push(stat("Rewards", `${snap.rewards_earned || 0} / ${snap.rewards_to_win || 5}`, "ok"));
-    items.push(stat("Good codes", `${snap.good_codes_progress || 0} / ${snap.good_codes_per_reward || 5}`));
+    items.push(stat("Working clues", `${snap.good_codes_progress || 0} / ${snap.good_codes_per_reward || 5}`));
   }
 
   if (snap.phase === "collection" && (mode === "deadline" || mode === "bounty")) {
@@ -189,8 +189,10 @@ function syncBadgeLabel(btn, luck) {
 
 function hasOpenableLockbox(snap) {
   if (!snap || snap.game_mode !== "breakout") return false;
-  return (snap.locks || []).some(
-    (l) => l.kind === "digit4" && !l.solved && (l.clues || []).some((c) => c != null && c !== "")
+  const locks = snap.locks || [];
+  const lockboxes = locks.filter((l) => l.kind === "digit4");
+  return (lockboxes.length ? lockboxes : locks).some(
+    (l) => !l.solved && (l.clues || []).some((c) => c != null && c !== "")
   );
 }
 

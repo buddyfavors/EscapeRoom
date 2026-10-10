@@ -3,9 +3,13 @@
 {% block content %}
   <div id="banner" class="play-banner" role="status" aria-live="polite"></div>
   <section id="overview-view" class="start-view">
+    <div class="room-status" role="presentation">
+      <span class="room-status-alert">Prisoner restrained</span>
+      <span>Lockboxes: locked · Rescue: pending</span>
+    </div>
     <button id="btn-play" type="button" class="gm-console-btn start">
-      <span class="gm-console-btn-title">Start</span>
-      <span class="gm-console-btn-sub">Pick locks and begin a new game</span>
+      <span class="gm-console-btn-title">Let the game begin</span>
+      <span class="gm-console-btn-sub">Lock the lockboxes and start the rescue</span>
     </button>
     {% if minigames_enabled %}
       <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
@@ -16,8 +20,8 @@
     <div class="setup-modal-card">
       <h2 id="setup-modal-title">How many locks?</h2>
       <p class="muted lock-picks-hint">
-        Pick at least one lock total. Lock clues are earned first, then lockboxes. With lockboxes in play,
-        players scan the badge inside each one to open it — the game ends when every lockbox is open.
+        Pick at least one lock total. Lock clues are earned first, then lockboxes. Players scan the reward inside
+        each box to open it — the game ends when every lockbox is open (or every lock, with no lockboxes).
       </p>
       <div class="lock-pick-row">
         <label for="lock-lock4">4-digit locks</label>
@@ -53,9 +57,9 @@
     <div class="active-head">
       <div>
         <h1>
-          <span id="won-badge" class="won-badge" hidden>ESCAPED</span>
-          <span id="bounty-won-badge" class="won-badge" hidden>YOU WIN</span>
-          <span id="gm-won-badge" class="gm-won-badge" hidden>GAME OVER</span>
+          <span id="won-badge" class="won-badge" hidden>Prisoner freed</span>
+          <span id="bounty-won-badge" class="won-badge" hidden>You win</span>
+          <span id="gm-won-badge" class="gm-won-badge" hidden>Game over</span>
         </h1>
         <p id="phase-banner" class="phase-banner muted" hidden></p>
         <p id="timer-display" class="timer-display" hidden></p>
@@ -68,8 +72,8 @@
           <span class="strike-label">Rewards</span>
           <span id="rewards-count" class="strike-count">0 / 5</span>
         </div>
-        <div id="bounty-good-pill" class="strike-pill clue-pill" hidden title="Good RFID rolls toward the next reward">
-          <span class="strike-label">Good codes</span>
+        <div id="bounty-good-pill" class="strike-pill clue-pill" hidden title="Working clues toward the next reward">
+          <span class="strike-label">Working clues</span>
           <span id="bounty-good-count" class="strike-count">0 / 5</span>
         </div>
         <div id="collection-pill" class="strike-pill collection-pill" hidden title="Scan every RFID the Gamemaster handed out">
@@ -79,9 +83,9 @@
         <div
           id="bad-codes-pill"
           class="strike-pill bad-pill"
-          title="Bad RFID punishments and wrong lock tries add up — every 3rd means drawing a scratch-off card."
+          title="Broken clues and wrong lock tries add up — every 3rd means drawing a scratch-off card."
         >
-          <span class="strike-label">Bad codes</span>
+          <span class="strike-label">Broken clues</span>
           <span id="bad-codes-dots" class="strike-dots"></span>
           <span id="bad-codes-count" class="strike-count">0 / 3</span>
         </div>
@@ -97,9 +101,9 @@
           <div
             id="clue-minigame-pill"
             class="strike-pill clue-pill"
-            title="Each time a known RFID tag rolls good. At 3/3, a minigame opens next."
+            title="Each working clue recovered. At 3/3, a minigame opens next."
           >
-            <span class="strike-label">Good codes</span>
+            <span class="strike-label">Working clues</span>
             <span id="clue-dots" class="strike-dots"></span>
             <span id="clue-count" class="strike-count">0 / 3</span>
           </div>
@@ -107,7 +111,7 @@
       </div>
     </div>
     <section class="progress" id="locks-section">
-      <h2>Locks</h2>
+      <h2>Locks &amp; lockboxes</h2>
       <div id="locks" class="locks"></div>
     </section>
   </section>
@@ -134,5 +138,30 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=36"></script>
+  <div id="intro-overlay" class="intro-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="intro-title">
+    <div class="crt">
+      <div class="crt-screen">
+        <div class="crt-eye" aria-hidden="true"></div>
+        <div class="crt-text">
+          <p class="crt-hello" data-type>Hello.</p>
+          <h2 id="intro-title" class="crt-title" data-type>I WANT TO PLAY A GAME.</h2>
+          <p data-type>A <em>prisoner</em> sits bound before you. Complete tasks to earn clues, then scan them to secure their release.</p>
+          <p data-type>Beware: some clues are <em>damaged</em>. If you scan three broken clues, the captive will suffer a severe punishment.</p>
+          <p data-type>Working clues reveal codes to the lockboxes holding them. To win, you must unlock <em>every box</em> and scan the reward hidden inside each.</p>
+          <p class="crt-begin" data-type>Let the game begin.</p>
+        </div>
+        <div class="crt-glitch" aria-hidden="true"></div>
+      </div>
+      <div class="crt-bezel" aria-hidden="true">
+        <span class="crt-grille"></span>
+        <span class="crt-leds"><span></span><span></span><span class="on"></span></span>
+        <span class="crt-grille"></span>
+      </div>
+    </div>
+    <p class="intro-skip muted">Tap to continue</p>
+  </div>
+
+  <script src="/static/js/room_sounds.js?v=1"></script>
+  <script src="/static/js/room_fx.js?v=1"></script>
+  <script src="/static/js/app.js?v=38"></script>
 {% endblock %}

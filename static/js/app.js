@@ -95,10 +95,14 @@ function applyWheelPunishmentDisplay(labelEl, textEl, punishment, { fallbackLabe
   }
 }
 
+const sfx = window.RoomSounds || null;
+const fx = window.RoomFx || null;
+
 function hideWheelModal() {
   wheelModalOpen = false;
   wheelModalMode = null;
   if (wheelModal) wheelModal.hidden = true;
+  if (fx) fx.setAlarm(false);
   if (wheelCountdownHint) wheelCountdownHint.hidden = true;
   if (wheelSpinTimer) {
     window.clearTimeout(wheelSpinTimer);
@@ -190,6 +194,8 @@ function showWheelModal(msg) {
   wheelModalOpen = true;
   wheelModalMode = "punishment";
   wheelModal.hidden = false;
+  if (fx) fx.setAlarm(true);
+  if (sfx) sfx.alarm(3);
   if (wheelCountdownHint) wheelCountdownHint.hidden = true;
   if (wheelSpinStage) wheelSpinStage.hidden = false;
   if (wheelResultStage) wheelResultStage.hidden = true;
@@ -236,6 +242,7 @@ function syncWheelModalFromSnapshot(snap) {
     wheelModalOpen = true;
     wheelModalMode = "punishment";
     if (wheelModal) wheelModal.hidden = false;
+    if (fx) fx.setAlarm(true);
     if (wheelSpinStage) wheelSpinStage.hidden = true;
     if (wheelResultStage) wheelResultStage.hidden = false;
     applyWheelPunishmentDisplay(wheelPunishmentLabel, wheelPunishmentText, {
@@ -293,11 +300,20 @@ function syncTimerFromSnapshot(snap) {
   renderTimerText();
 }
 
+function timerRemainingSec() {
+  if (timerEndsAtMs == null) return null;
+  return Math.max(0, Math.floor((timerEndsAtMs - Date.now()) / 1000));
+}
+
+let lastBeepSec = null;
+
 function renderTimerText() {
   if (!timerDisplay || timerEndsAtMs == null) return;
-  const sec = Math.max(0, Math.floor((timerEndsAtMs - Date.now()) / 1000));
+  const sec = timerRemainingSec();
   timerDisplay.textContent = `Round ${timerCycle} · Time left: ${formatTimer(sec)}${timerShrinkNote}`;
   timerDisplay.classList.toggle("timer-urgent", sec <= 60);
+  if (sfx && sec > 0 && sec <= 10 && sec !== lastBeepSec) sfx.countdownBeep(sec <= 3);
+  lastBeepSec = sec;
 }
 
 function renderGmPreview(programming, { loading = false, error = "" } = {}) {
@@ -386,8 +402,8 @@ function closeSetupModal() {
 }
 
 function kindLabel(kind) {
-  if (kind === "lock4") return "4-digit lock";
-  if (kind === "digit4") return "4-digit lockbox";
+  if (kind === "lock4") return "Lock";
+  if (kind === "digit4") return "Lockbox";
   return kind;
 }
 
@@ -403,20 +419,20 @@ function formatClues(lock) {
 }
 
 function lockStateLabel(lock) {
-  if (lock.solved) return "OPENED";
-  if (lock.fully_revealed) return "CODE REVEALED";
+  if (lock.solved) return "UNLOCKED";
+  if (lock.fully_revealed) return "CODE RECOVERED";
   return "LOCKED";
 }
 
 function badCodesHint(snap) {
   const effect = snap && snap.bad_code_effect;
   if (effect === "time_penalty") {
-    return "Every 3rd bad code shaves 30 seconds off the clock.";
+    return "Every 3rd broken clue shaves 30 seconds off the clock.";
   }
   if (effect === "lose_progress") {
-    return "Every 3rd bad code steals one step toward your next reward.";
+    return "Every 3rd broken clue steals one step toward your next reward.";
   }
-  return "Every 3rd bad RFID or wrong lock try means drawing a scratch-off card.";
+  return "Every 3rd broken clue or wrong lock try means drawing a scratch-off card.";
 }
 
 function renderBadCodesMeter(snap) {
@@ -619,7 +635,8 @@ function setActiveView(snap) {
   }
   if (locksEl) {
     locksEl.innerHTML = "";
-    for (const lock of snap.locks || []) {
+    const locks = snap.locks || [];
+    locks.forEach((lock) => {
       const card = document.createElement("div");
       const classes = ["lock-card"];
       if (lock.solved) classes.push("solved");
@@ -631,7 +648,7 @@ function setActiveView(snap) {
         <div class="lock-clues">${formatClues(lock)}</div>
       `;
       locksEl.appendChild(card);
-    }
+    });
   }
 }
 
@@ -710,8 +727,9 @@ if (btnSetupStart) {
     try {
       const data = await postJson("/api/game/start", locks);
       closeSetupModal();
-      setBanner("Game started.", "ok");
+      setBanner("Let the game begin.", "ok");
       setActiveView(data.snapshot);
+      playIntro(data.snapshot);
     } catch (e) {
       setSetupError(String(e.message || e));
     } finally {
@@ -720,7 +738,39 @@ if (btnSetupStart) {
   });
 }
 
+function playIntro(snap) {
+  if (!fx || !snap) return;
+  fx.intro.show({ key: snap.started_at_iso });
+}
+
+const BROKEN_CLUE_INTERACTIONS = new Set(["rfid_punishment", "lock", "luck_failure"]);
+
+function playResultCue(result, snap) {
+  if (!sfx && !fx) return;
+  if (snap && (snap.gm_won === true || snap.gm_won === "true")) {
+    if (sfx) sfx.powerDown();
+    if (fx) fx.glitch();
+    return;
+  }
+  if (result.won) {
+    if (sfx) sfx.victory();
+    return;
+  }
+  const tone = bannerToneForResult(result);
+  if (tone === "ok") {
+    if (sfx) sfx.chirp();
+  } else if (tone === "bad") {
+    if (BROKEN_CLUE_INTERACTIONS.has(result.interaction || "lock")) {
+      if (sfx) sfx.glitch();
+      if (fx) fx.glitch();
+    } else if (sfx) {
+      sfx.buzz();
+    }
+  }
+}
+
 function applyWsMessage(msg) {
+  if (msg.type === "game_started") playIntro(msg.snapshot);
   if (msg.type === "hello") {
     hideWheelModal();
     setActiveView(msg.snapshot);
@@ -750,9 +800,10 @@ function applyWsMessage(msg) {
       return;
     }
     if (msg.type === "code_result" && msg.result) {
+      playResultCue(msg.result, msg.snapshot);
       if (msg.snapshot && (msg.snapshot.gm_won === true || msg.snapshot.gm_won === "true")) {
         setBanner(
-          `${gmName(msg.snapshot)} wins — you failed!`,
+          `${gmName(msg.snapshot)} wins — the prisoner stays bound.`,
           "bad"
         );
       } else if (msg.result.won) {
@@ -762,13 +813,18 @@ function applyWsMessage(msg) {
       }
     }
     if (msg.type === "luck_test") {
-      setBanner(msg.message || "Three bad codes — draw a scratch-off card!", "bad");
+      if (sfx) sfx.alarm(2);
+      if (fx) fx.glitch();
+      setBanner(msg.message || "Three broken clues — draw a scratch-off card!", "bad");
     }
     if (msg.type === "luck_test_passed") {
       hideWheelModal();
+      if (sfx) sfx.chirp();
       setBanner(msg.message || "Winning ticket — no punishment this time!", "ok");
     }
     if (msg.type === "timer_expired") {
+      if (sfx) sfx.alarm(3);
+      if (fx) fx.glitch();
       setBanner("Time's up — the punishment wheel spins!", "bad");
     }
     if (msg.type === "timer_restarted") {
@@ -786,6 +842,7 @@ function applyWsMessage(msg) {
   }
   if (msg.type === "game_stopped") {
     hideWheelModal();
+    if (fx) fx.intro.close();
     setActiveView(null);
     setBanner("Game ended.", "");
     return;
@@ -793,6 +850,7 @@ function applyWsMessage(msg) {
   if (msg.type === "forced_minigame" && msg.url) {
     if (msg.gm_won) {
       hideWheelModal();
+      if (sfx) sfx.powerDown();
       setBanner(msg.game_over_message || "The Gamemaster wins!", "bad");
       return;
     }
@@ -802,7 +860,7 @@ function applyWsMessage(msg) {
     const text =
       msg.message ||
       (scheduled
-        ? "Three good RFID codes — the Gamemaster opens a minigame."
+        ? "Three working clues — the Gamemaster opens a minigame."
         : "The Gamemaster locks the room — your penance is a minigame.");
     setBanner(text, tone);
     window.setTimeout(() => {
@@ -814,6 +872,7 @@ function applyWsMessage(msg) {
     if (msg.reason === "punishment_wheel") hideWheelModal();
     if (msg.snapshot) setActiveView(msg.snapshot);
     let text;
+    if (msg.gm_won && sfx) sfx.powerDown();
     if (msg.gm_won) text = msg.game_over_message || "The Gamemaster wins!";
     else if (msg.physical) text = msg.message || "Punishment dealt.";
     else text = "Punishment: " + (msg.message || "The Gamemaster claims this one.");

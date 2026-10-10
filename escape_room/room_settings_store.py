@@ -11,14 +11,14 @@ from escape_room.rfid_format import normalize_rfid_tag
 DEFAULT_GM_NAME = "Gamemaster"
 
 DEFAULT_BAD_SCAN_PHRASES: tuple[str, ...] = (
-    "Bad scan — {gm} laughs.",
-    "Punishment! {gm} gains an edge.",
-    "{gm} savors that failure — no clue for you.",
-    "Cursed tag. The house remembers.",
+    "Broken clue — {gm} laughs.",
+    "Corrupted data. {gm} gains an edge.",
+    "{gm} savors that failure — the clue is dead.",
+    "Cursed clue. The house remembers.",
     "{gm} claims that one with a grin.",
-    "Wrong soul, right trap — try again when you stop shaking.",
+    "That clue is broken — try again when you stop shaking.",
     "{gm} whispers: not today.",
-    "That badge bled out — nothing earned.",
+    "That clue bled out — nothing recovered.",
 )
 
 
@@ -47,8 +47,8 @@ class RoomSettings(BaseModel):
     lockbox_tags: list[str] = Field(
         default_factory=list,
         description=(
-            "10-digit RFID badges, one inside each lockbox. Scanning one marks the revealed "
-            "lockbox as open; each badge works once per game."
+            "10-digit RFID rewards, one inside each lockbox. Scanning one marks the revealed "
+            "lockbox (or lock, with no lockboxes) as open; each reward works once per game."
         ),
     )
 

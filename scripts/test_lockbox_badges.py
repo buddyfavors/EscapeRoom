@@ -104,12 +104,23 @@ def test_virtual_lockbox_badge() -> None:
     assert done.ok and done.won, done
 
 
-def test_no_lockboxes_keeps_all_locks_rule() -> None:
-    engine = _engine(lock4=1, digit4=0)
+def test_no_lockboxes_rewards_open_locks() -> None:
+    engine = _engine(lock4=2, digit4=0)
+    early = engine.submit_code(BOX_A)
+    assert not early.ok and "no lock code" in early.message.lower(), early
     _reveal(engine, 4)
     assert not engine.snapshot().won
-    badge = engine.submit_code(BOX_A)
-    assert not badge.ok and "no lockboxes" in badge.message.lower(), badge
+    first = engine.submit_code(BOX_A)
+    assert first.ok and not first.won and "(1/2)" in first.message, first
+    _reveal(engine, 4)
+    second = engine.submit_virtual_badge("lockbox")
+    assert second.ok and second.won, second
+    assert engine.snapshot().won
+
+
+def test_no_lockboxes_code_entry_still_wins() -> None:
+    engine = _engine(lock4=1, digit4=0)
+    _reveal(engine, 4)
     code = engine.snapshot().locks[0].code
     opened = engine.submit_code(code)
     assert opened.ok and opened.won, opened
@@ -128,6 +139,7 @@ if __name__ == "__main__":
     test_all_lockboxes_open_ends_game()
     test_partially_revealed_lockbox_can_be_opened()
     test_virtual_lockbox_badge()
-    test_no_lockboxes_keeps_all_locks_rule()
+    test_no_lockboxes_rewards_open_locks()
+    test_no_lockboxes_code_entry_still_wins()
     test_room_settings_normalize_lockbox_tags()
     print("OK: lockbox badges verified")
