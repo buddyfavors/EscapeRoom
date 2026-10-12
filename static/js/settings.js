@@ -11,8 +11,7 @@ const gmProgramming = document.getElementById("gm-programming");
 const btnGm = document.getElementById("btn-refresh-gm");
 const gmNameInput = document.getElementById("gm-name");
 const badPhrasesText = document.getElementById("bad-phrases-text");
-const wildcardGoodTag = document.getElementById("wildcard-good-tag");
-const wildcardTrumpTag = document.getElementById("wildcard-trump-tag");
+const rewardBadgeTag = document.getElementById("reward-badge-tag");
 const gmCompleteTag = document.getElementById("gm-complete-tag");
 const physicalWheel = document.getElementById("physical-wheel");
 const lockboxTagsText = document.getElementById("lockbox-tags-text");
@@ -127,11 +126,9 @@ async function refreshGm() {
   }
 
   const pct = data.rfid_good_percent != null ? data.rfid_good_percent : "—";
-  const diff = data.snapshot && data.snapshot.difficulty ? data.snapshot.difficulty : "";
-  const diffTitle = diff ? diff[0].toUpperCase() + diff.slice(1) : "—";
 
   let html =
-    `<p class="gm-meta"><strong>RFID luck:</strong> ${diffTitle} · ${pct}% good scans · ` +
+    `<p class="gm-meta"><strong>RFID luck:</strong> ${pct}% good scans · ` +
     `<strong>${data.programming.length}</strong> lock${data.programming.length === 1 ? "" : "s"}</p>` +
     '<table class="gm-table"><thead><tr><th>#</th><th>Type</th><th>Set lock to</th></tr></thead><tbody>';
 
@@ -150,8 +147,7 @@ async function loadRoomSettings() {
   if (badPhrasesText) {
     badPhrasesText.value = (data.bad_scan_phrases || []).join("\n");
   }
-  if (wildcardGoodTag) wildcardGoodTag.value = data.wildcard_free_good_tag || "";
-  if (wildcardTrumpTag) wildcardTrumpTag.value = data.wildcard_trump_tag || "";
+  if (rewardBadgeTag) rewardBadgeTag.value = data.reward_badge_tag || "";
   if (gmCompleteTag) gmCompleteTag.value = data.gamemaster_complete_tag || "";
   if (physicalWheel) physicalWheel.checked = !!data.physical_wheel;
   if (lockboxTagsText) lockboxTagsText.value = (data.lockbox_tags || []).join("\n");
@@ -175,8 +171,7 @@ if (btnSaveRoom) {
       const data = await postJson("/api/room-settings", {
         gamemaster_name: (gmNameInput?.value || "Gamemaster").trim(),
         bad_scan_phrases: phrases,
-        wildcard_free_good_tag: (wildcardGoodTag?.value || "").trim() || null,
-        wildcard_trump_tag: (wildcardTrumpTag?.value || "").trim() || null,
+        reward_badge_tag: (rewardBadgeTag?.value || "").trim() || null,
         gamemaster_complete_tag: (gmCompleteTag?.value || "").trim() || null,
         physical_wheel: !!physicalWheel?.checked,
         lockbox_tags: lockboxTags,

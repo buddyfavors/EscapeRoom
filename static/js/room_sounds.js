@@ -121,7 +121,7 @@
       });
     },
 
-    /** Klaxon for punishments and expired timers. */
+    /** Klaxon for punishments. */
     alarm(cycles) {
       play(function (t0) {
         const n = cycles || 3;
@@ -182,21 +182,39 @@
       });
     },
 
-    /** Final-seconds countdown beep. */
-    countdownBeep(urgent) {
+    /** Finale: restraints clank open, a rising sweep, then a held major chord with sparkles. */
+    fanfare() {
       play(function (t0) {
-        osc("square", urgent ? 1046 : 784, t0, 0.09, 0.06);
-      });
-    },
-
-    /** Prisoner freed: rising sweep into a bright chord. */
-    victory() {
-      play(function (t0) {
-        osc("sawtooth", 110, t0, 1.2, 0.06, 880);
-        staticBurst(t0, 1.0, 0.06, 900);
-        [523, 659, 784, 1046].forEach(function (f, i) {
-          osc("triangle", f, t0 + 1.1 + i * 0.05, 0.9, 0.07);
+        [0, 0.32].forEach(function (dt) {
+          staticBurst(t0 + dt, 0.12, 0.25, 900);
+          osc("square", 120, t0 + dt, 0.18, 0.12, 45);
         });
+        osc("sawtooth", 110, t0 + 0.6, 1.0, 0.05, 880);
+        [523, 659, 784, 1046, 1319].forEach(function (f, i) {
+          osc("triangle", f, t0 + 1.4 + i * 0.11, 0.35, 0.08);
+        });
+
+        const tc = t0 + 2.0;
+        const lp = ctx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.setValueAtTime(600, tc);
+        lp.frequency.linearRampToValueAtTime(2400, tc + 1.2);
+        const g = envGain(tc, 0.05, 0.4, 2.2, 1.6);
+        lp.connect(g);
+        g.connect(master);
+        [261.6, 329.6, 392, 523.3].forEach(function (f) {
+          [["sawtooth", 1.003], ["triangle", 2]].forEach(function (voice) {
+            const o = ctx.createOscillator();
+            o.type = voice[0];
+            o.frequency.value = f * voice[1];
+            o.connect(lp);
+            o.start(tc);
+            o.stop(tc + 4.4);
+          });
+        });
+        for (let i = 0; i < 10; i++) {
+          osc("sine", 1568 + Math.random() * 1600, tc + 0.3 + i * 0.22, 0.12, 0.03);
+        }
       });
     },
 

@@ -44,6 +44,7 @@
   let typeTimer = null;
   let autoCloseTimer = null;
   let shownFor = null;
+  let onClosed = null;
 
   // Capture each line's text nodes once so typing preserves inline markup like <em>.
   if (textRoot) {
@@ -170,7 +171,7 @@
   }
 
   function close() {
-    if (!overlay || overlay.hidden) return;
+    if (!overlay || overlay.hidden || overlay.classList.contains("closing")) return;
     clearTimers();
     showToken += 1;
     stopVoice();
@@ -181,6 +182,12 @@
       overlay.classList.remove("closing");
       revealAll();
     }, 450);
+    if (onClosed) onClosed();
+  }
+
+  /** Badge scan: close like a tap, but only once the message has finished typing. */
+  function continueIfFinished() {
+    if (finished) close();
   }
 
   function show(opts) {
@@ -241,6 +248,13 @@
   global.RoomFx = {
     glitch,
     setAlarm,
-    intro: { show, close },
+    intro: {
+      show,
+      close,
+      continueIfFinished,
+      onClosed(fn) {
+        onClosed = fn;
+      },
+    },
   };
 })(window);

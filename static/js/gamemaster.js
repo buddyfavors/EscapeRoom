@@ -1,31 +1,17 @@
 const modeEl = document.getElementById("gmc-mode");
-const difficultyEl = document.getElementById("gmc-difficulty");
 const stateEl = document.getElementById("gmc-state");
-const timerEl = document.getElementById("gmc-timer");
 const messageEl = document.getElementById("gmc-message");
 const statsEl = document.getElementById("gmc-stats");
 const logEl = document.getElementById("gmc-log");
 const actionButtons = Array.from(document.querySelectorAll(".gm-console-btn[data-outcome]"));
 const badgeButtons = Array.from(document.querySelectorAll(".gm-console-badge[data-badge]"));
 
-const MODE_LABELS = {
-  breakout: "Classic Escape",
-  deadline: "Deadline",
-  bounty: "Bounty",
-};
 let currentSnap = null;
 let busy = false;
-let timerEndsAtMs = null;
-let timerTick = null;
 let lastMessage = null;
 
 function isTrue(v) {
   return v === true || v === "true";
-}
-
-function formatTimer(sec) {
-  const s = Math.max(0, Math.floor(sec));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 function pendingText(snap) {
@@ -37,7 +23,7 @@ function pendingText(snap) {
   const msg = snap.pending_punishment_message && snap.pending_punishment_message !== label
     ? ` — ${snap.pending_punishment_message}`
     : "";
-  return `Pending: ${label}${msg} — skip or complete it below, or scan a badge.`;
+  return `Pending: ${label}${msg} — skip it with the reward badge or complete it with the Gamemaster badge.`;
 }
 
 function renderMessage() {
@@ -75,20 +61,20 @@ function addLog(text, tone) {
 function toneForResult(r) {
   const inter = r.interaction || "lock";
   if (inter === "rfid_exhausted") return "";
-  if (inter === "rfid_collect" || inter === "rfid_good" || inter === "reward_badge") return "ok";
+  if (inter === "rfid_good") return "ok";
   return r.ok ? "ok" : "bad";
 }
 
 function stateFor(snap) {
   if (!snap) return { label: "Idle", cls: "idle" };
+  if (snap.phase === "ready") return { label: "Waiting to start", cls: "warn" };
+  if (isTrue(snap.intro_active)) return { label: "Intro playing", cls: "warn" };
   if (isTrue(snap.gm_won)) return { label: `${snap.gamemaster_name || "Gamemaster"} wins`, cls: "bad" };
-  if (isTrue(snap.won)) return { label: snap.game_mode === "breakout" ? "Prisoner freed" : "Players win", cls: "ok" };
+  if (isTrue(snap.won)) return { label: "Prisoner freed", cls: "ok" };
   if (snap.punishment_resolution === "luck_test") return { label: "Scratch-off pending", cls: "warn" };
   if (snap.punishment_resolution && snap.punishment_resolution !== "none") {
     return { label: "Punishment pending", cls: "bad" };
   }
-  if (snap.phase === "punishment") return { label: "Punishment", cls: "bad" };
-  if (snap.phase === "collection") return { label: "Collecting RFIDs", cls: "warn" };
   return { label: "Playing", cls: "ok" };
 }
 
@@ -102,7 +88,11 @@ function renderStats(snap) {
     statsEl.innerHTML = '<p class="muted">Start a game on the Play screen — this page updates live.</p>';
     return;
   }
-  const mode = snap.game_mode;
+  if (snap.phase === "ready") {
+    statsEl.innerHTML =
+      '<p class="muted">Room armed. Finish setting up, then scan your reward badge (or press Start game below) to play the intro.</p>';
+    return;
+  }
   const items = [];
   const badGoal = Math.max(1, Number(snap.bad_codes_goal) || 3);
   const badNow = Math.max(0, Number(snap.bad_codes_progress) || 0);
@@ -112,83 +102,44 @@ function renderStats(snap) {
   const received = Math.max(0, Number(snap.punishments_received) || 0);
   items.push(stat("Punishments", limit > 0 ? `${received} / ${limit}` : String(received)));
 
-  if (snap.rfid_bad_chance_percent != null && snap.phase !== "collection" && !isTrue(snap.game_over)) {
+  if (snap.rfid_bad_chance_percent != null && !isTrue(snap.game_over)) {
     items.push(stat("Next scan bad", `${snap.rfid_bad_chance_percent}%`));
   }
 
-  if (mode === "breakout") {
-    const locks = snap.locks || [];
-    const revealed = locks.filter((l) => l.solved || l.fully_revealed).length;
-    let shown = 0;
-    let total = 0;
-    for (const l of locks) {
-      for (const c of l.clues || []) {
-        total += 1;
-        if (c != null && c !== "") shown += 1;
-      }
-    }
-    items.push(stat("Codes revealed", `${revealed} / ${locks.length}`, revealed === locks.length && locks.length ? "ok" : ""));
-    items.push(stat("Clues revealed", `${shown} / ${total}`));
-    const lockboxes = locks.filter((l) => l.kind === "digit4");
-    if (lockboxes.length) {
-      const open = lockboxes.filter((l) => l.solved).length;
-      items.push(stat("Lockboxes open", `${open} / ${lockboxes.length}`, open === lockboxes.length ? "ok" : ""));
+  const locks = snap.locks || [];
+  const revealed = locks.filter((l) => l.solved || l.fully_revealed).length;
+  let shown = 0;
+  let total = 0;
+  for (const l of locks) {
+    for (const c of l.clues || []) {
+      total += 1;
+      if (c != null && c !== "") shown += 1;
     }
   }
-
-  if (mode === "bounty") {
-    items.push(stat("Rewards", `${snap.rewards_earned || 0} / ${snap.rewards_to_win || 5}`, "ok"));
-    items.push(stat("Working clues", `${snap.good_codes_progress || 0} / ${snap.good_codes_per_reward || 5}`));
-  }
-
-  if (snap.phase === "collection" && (mode === "deadline" || mode === "bounty")) {
-    items.push(stat("RFIDs scanned", `${snap.rfids_collected || 0} / ${snap.rfids_per_punishment || 4}`));
-  }
-
-  if (isTrue(snap.minigames_enabled) && (mode === "breakout" || mode === "bounty")) {
-    items.push(stat("Minigame meter", `${snap.good_rfid_progress || 0} / ${snap.good_rfid_goal || 3}`));
+  items.push(stat("Codes revealed", `${revealed} / ${locks.length}`, revealed === locks.length && locks.length ? "ok" : ""));
+  items.push(stat("Clues revealed", `${shown} / ${total}`));
+  const lockboxes = locks.filter((l) => l.kind === "digit4");
+  if (lockboxes.length) {
+    const open = lockboxes.filter((l) => l.solved).length;
+    items.push(stat("Lockboxes open", `${open} / ${lockboxes.length}`, open === lockboxes.length ? "ok" : ""));
   }
   statsEl.innerHTML = items.join("");
 }
 
-function stopTimer() {
-  if (timerTick) window.clearInterval(timerTick);
-  timerTick = null;
-  timerEndsAtMs = null;
-  if (timerEl) timerEl.hidden = true;
-}
-
-function renderTimer() {
-  if (!timerEl || timerEndsAtMs == null) return;
-  const sec = Math.max(0, Math.floor((timerEndsAtMs - Date.now()) / 1000));
-  timerEl.textContent = `Round ${currentSnap?.deadline_cycle || 1} · ${formatTimer(sec)} left`;
-  timerEl.classList.toggle("timer-urgent", sec <= 60);
-}
-
-function syncTimer(snap) {
-  const remaining = Number(snap?.timer_seconds_remaining);
-  if (!snap || snap.game_mode !== "deadline" || snap.phase !== "playing" || !Number.isFinite(remaining)) {
-    stopTimer();
-    return;
-  }
-  timerEndsAtMs = Date.now() + remaining * 1000;
-  if (timerEl) timerEl.hidden = false;
-  if (!timerTick) timerTick = window.setInterval(renderTimer, 1000);
-  renderTimer();
-}
-
-function syncBadgeLabel(btn, luck) {
-  if (!btn.dataset.luckTitle) return;
+/** variant: "luck" | "ready" | "intro" | "skip" | null — swaps in the button's data-<variant>-title / -sub labels. */
+function syncBadgeLabel(btn, variant) {
   const titleEl = btn.querySelector(".gm-console-badge-title");
   const subEl = btn.querySelector(".gm-console-badge-sub");
   if (titleEl && btn.dataset.defaultTitle === undefined) btn.dataset.defaultTitle = titleEl.textContent;
   if (subEl && btn.dataset.defaultSub === undefined) btn.dataset.defaultSub = subEl.textContent;
-  if (titleEl) titleEl.textContent = luck ? btn.dataset.luckTitle : btn.dataset.defaultTitle;
-  if (subEl) subEl.textContent = luck ? btn.dataset.luckSub : btn.dataset.defaultSub;
+  const title = variant && btn.dataset[`${variant}Title`];
+  const sub = variant && btn.dataset[`${variant}Sub`];
+  if (titleEl) titleEl.textContent = title || btn.dataset.defaultTitle;
+  if (subEl) subEl.textContent = sub || btn.dataset.defaultSub;
 }
 
 function hasOpenableLockbox(snap) {
-  if (!snap || snap.game_mode !== "breakout") return false;
+  if (!snap) return false;
   const locks = snap.locks || [];
   const lockboxes = locks.filter((l) => l.kind === "digit4");
   return (lockboxes.length ? lockboxes : locks).some(
@@ -201,28 +152,25 @@ function syncButtons() {
   const resolution = (snap && snap.punishment_resolution) || "none";
   const pending = resolution !== "none";
   const luck = resolution === "luck_test";
-  const usable = !!snap && !isTrue(snap.game_over) && !pending;
+  const ready = !!snap && snap.phase === "ready";
+  const intro = !!snap && isTrue(snap.intro_active);
+  const usable = !!snap && !isTrue(snap.game_over) && !pending && !ready;
   for (const btn of actionButtons) btn.disabled = busy || !usable;
   for (const btn of badgeButtons) {
     let ok;
-    if (btn.dataset.badge === "reward") ok = usable || luck;
-    else if (btn.dataset.badge === "skip") ok = pending && !luck;
+    if (btn.dataset.badge === "reward") ok = usable || ready || pending;
     else if (btn.dataset.badge === "lockbox") ok = usable && hasOpenableLockbox(snap);
     else ok = pending;
     btn.disabled = busy || !ok;
-    syncBadgeLabel(btn, luck);
+    syncBadgeLabel(btn, ready ? "ready" : intro ? "intro" : luck ? "luck" : pending ? "skip" : null);
   }
 }
 
 function render(snap) {
-  currentSnap = snap && snap.started_at_iso ? snap : null;
+  currentSnap = snap || null;
   const s = currentSnap;
   if (window.NavSetGameActive) window.NavSetGameActive(!!s);
-  if (modeEl) modeEl.textContent = s ? MODE_LABELS[s.game_mode] || "Game" : "No game running";
-  if (difficultyEl) {
-    const d = s ? String(s.difficulty || "") : "";
-    difficultyEl.textContent = d ? `— ${d[0].toUpperCase()}${d.slice(1)}` : "";
-  }
+  if (modeEl) modeEl.textContent = s ? "Classic Escape" : "No game running";
   if (stateEl) {
     const { label, cls } = stateFor(s);
     stateEl.textContent = label;
@@ -230,15 +178,20 @@ function render(snap) {
   }
   renderMessage();
   renderStats(s);
-  syncTimer(s);
   syncButtons();
 }
 
 function applyWsMessage(msg) {
   if (msg.snapshot !== undefined && msg.type !== "punishment_text") render(msg.snapshot);
   switch (msg.type) {
+    case "game_armed":
+      addLog("Room armed — scan the reward badge to start the game.", "ok");
+      break;
     case "game_started":
-      addLog("Game started.", "ok");
+      addLog("Game started — scan the reward or Gamemaster badge once the intro finishes.", "ok");
+      break;
+    case "intro_done":
+      addLog("Intro closed.", "ok");
       break;
     case "game_stopped":
       render(null);
@@ -265,23 +218,8 @@ function applyWsMessage(msg) {
       if (msg.gm_won) addLog(msg.game_over_message || "Gamemaster wins.", "bad");
       else addLog(msg.physical ? msg.message : `Punishment: ${msg.message || ""}`, msg.physical ? "ok" : "bad");
       break;
-    case "forced_minigame":
-      addLog(msg.message || "Minigame launched.", msg.reason === "punishment_wheel" ? "bad" : "ok");
-      break;
-    case "timer_expired":
-      addLog("Timer expired — wheel spins.", "bad");
-      break;
-    case "timer_restarted":
-      addLog("All RFIDs scanned — timer restarted.", "ok");
-      break;
-    case "bounty_collection_complete":
-      addLog("Bounty batch complete.", "ok");
-      break;
     case "trump_used":
-      addLog(msg.message || "Skip badge used.", "ok");
-      break;
-    case "punishment_complete":
-      addLog("Punishment complete.", "ok");
+      addLog(msg.message || "Reward badge — punishment skipped.", "ok");
       break;
     default:
       break;
