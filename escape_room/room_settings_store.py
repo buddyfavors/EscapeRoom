@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from escape_room.config import ROOM_SETTINGS_FILE
 from escape_room.rfid_format import normalize_rfid_tag
@@ -25,13 +25,12 @@ DEFAULT_BAD_SCAN_PHRASES: tuple[str, ...] = (
 class RoomSettings(BaseModel):
     gamemaster_name: str = Field(default=DEFAULT_GM_NAME, min_length=1, max_length=40)
     bad_scan_phrases: list[str] = Field(default_factory=lambda: list(DEFAULT_BAD_SCAN_PHRASES))
-    wildcard_free_good_tag: str | None = Field(
+    reward_badge_tag: str | None = Field(
         default=None,
-        description="10-digit RFID badge — guaranteed good scan, or a winning scratch-off ticket.",
-    )
-    wildcard_trump_tag: str | None = Field(
-        default=None,
-        description="10-digit RFID badge — skip current punishment while punishment window is open.",
+        description=(
+            "10-digit RFID badge — starts the game, guaranteed good scan, winning scratch-off "
+            "ticket, or skips a pending punishment."
+        ),
     )
     gamemaster_complete_tag: str | None = Field(
         default=None,
@@ -52,6 +51,16 @@ class RoomSettings(BaseModel):
         ),
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_badges(cls, data):  # noqa: ANN001
+        # Older settings files kept separate reward and skip badge tags.
+        if isinstance(data, dict) and not data.get("reward_badge_tag"):
+            legacy = data.get("wildcard_free_good_tag") or data.get("wildcard_trump_tag")
+            if legacy:
+                data = {**data, "reward_badge_tag": legacy}
+        return data
+
     @field_validator("gamemaster_name", mode="before")
     @classmethod
     def _strip_name(cls, v):  # noqa: ANN001
@@ -68,7 +77,7 @@ class RoomSettings(BaseModel):
         out = [str(x).strip() for x in v if str(x).strip()]
         return out or list(DEFAULT_BAD_SCAN_PHRASES)
 
-    @field_validator("wildcard_free_good_tag", "wildcard_trump_tag", "gamemaster_complete_tag", mode="before")
+    @field_validator("reward_badge_tag", "gamemaster_complete_tag", mode="before")
     @classmethod
     def _normalize_wildcard(cls, v):  # noqa: ANN001
         if v is None or str(v).strip() == "":

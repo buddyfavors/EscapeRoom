@@ -4,13 +4,9 @@
 {% block content %}
   <section class="panel gm-console-status">
     <div class="gm-console-head">
-      <h1>
-        <span id="gmc-mode">No game running</span>
-        <span id="gmc-difficulty" class="muted"></span>
-      </h1>
+      <h1 id="gmc-mode">No game running</h1>
       <span id="gmc-state" class="gm-console-state idle">Idle</span>
     </div>
-    <p id="gmc-timer" class="timer-display" hidden></p>
     <p id="gmc-message" class="gm-console-message" role="status" aria-live="polite" hidden></p>
     <div id="gmc-stats" class="gm-console-stats"></div>
   </section>
@@ -31,13 +27,12 @@
   </section>
   <section class="gm-console-badges">
     <button type="button" class="gm-console-badge reward" data-badge="reward" disabled
-      data-luck-title="Ticket won" data-luck-sub="Winning scratch-off — no punishment">
+      data-luck-title="Ticket won" data-luck-sub="Winning scratch-off — no punishment"
+      data-ready-title="Start game" data-ready-sub="Same as scanning the reward badge — plays the intro"
+      data-intro-title="Continue" data-intro-sub="Closes the intro once its message has finished"
+      data-skip-title="Skip punishment" data-skip-sub="Same as scanning the reward badge">
       <span class="gm-console-badge-title">Reward badge</span>
       <span class="gm-console-badge-sub">Same as scanning the reward badge</span>
-    </button>
-    <button type="button" class="gm-console-badge skip" data-badge="skip" disabled>
-      <span class="gm-console-badge-title">Skip punishment</span>
-      <span class="gm-console-badge-sub">Same as the skip badge</span>
     </button>
     <button type="button" class="gm-console-badge complete" data-badge="complete" disabled
       data-luck-title="Ticket lost" data-luck-sub="Losing scratch-off — same as the punishment card">
@@ -55,5 +50,5 @@
     <ol id="gmc-log" class="gm-console-log"></ol>
   </section>
 
-  <script src="/static/js/gamemaster.js?v=12"></script>
+  <script src="/static/js/gamemaster.js?v=14"></script>
 {% endblock %}

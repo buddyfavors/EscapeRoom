@@ -9,23 +9,23 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from escape_room.game_engine import GameEngine
-from escape_room.models import Difficulty, GameMode, GamePhase, LockCounts, PunishmentResolution
+from escape_room.models import LockCounts, PunishmentResolution
 from escape_room.punishments_store import PunishmentEntry
 from escape_room.room_settings_store import RoomSettings, load_room_settings, save_room_settings
 
 
 def _engine(events: list[dict]) -> GameEngine:
     engine = GameEngine()
-    engine.set_punishments([PunishmentEntry(raw="Ten push-ups", kind="text", target="Ten push-ups", message="Ten push-ups")])
+    engine.set_punishments([PunishmentEntry(raw="Ten push-ups", message="Ten push-ups")])
     engine.set_room_settings(RoomSettings(gamemaster_name="GM", physical_wheel=True))
     engine.subscribe(events.append)
     return engine
 
 
-def test_breakout_physical_wheel() -> None:
+def test_physical_wheel() -> None:
     events: list[dict] = []
     engine = _engine(events)
-    engine.start(Difficulty.medium, LockCounts(lock4=1), game_mode=GameMode.breakout)
+    engine.start(LockCounts(lock4=1))
 
     for _ in range(3):
         last = engine.submit_virtual_rfid("bad")
@@ -40,7 +40,7 @@ def test_breakout_physical_wheel() -> None:
     assert wheel["physical"] is True
     assert wheel["entries"] == []
     assert wheel["punishment"]["label"] == "Spin the wheel!"
-    assert "roll" in wheel["punishment"]["message"].lower()
+    assert "GM spins the wheel" in wheel["punishment"]["message"]
 
     snap = engine.snapshot()
     assert snap.punishment_resolution is PunishmentResolution.trump_window
@@ -56,21 +56,6 @@ def test_breakout_physical_wheel() -> None:
     assert "Ten push-ups" not in engine._used_punishment_keys
 
 
-def test_deadline_physical_wheel_then_collection() -> None:
-    events: list[dict] = []
-    engine = _engine(events)
-    engine.start(Difficulty.medium, LockCounts(), game_mode=GameMode.deadline, rfids_per_punishment=2)
-    with engine._lock:
-        wheel = engine._spin_punishment_wheel()
-    assert wheel["physical"] is True
-    assert engine.snapshot().phase is GamePhase.punishment
-
-    engine.submit_virtual_badge("complete")
-    snap = engine.snapshot()
-    assert snap.phase is GamePhase.collection
-    engine.stop()
-
-
 def test_setting_round_trip() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "room.json"
@@ -80,7 +65,6 @@ def test_setting_round_trip() -> None:
 
 
 if __name__ == "__main__":
-    test_breakout_physical_wheel()
-    test_deadline_physical_wheel_then_collection()
+    test_physical_wheel()
     test_setting_round_trip()
     print("OK: physical wheel verified")

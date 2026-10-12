@@ -11,9 +11,21 @@
       <span class="gm-console-btn-title">Let the game begin</span>
       <span class="gm-console-btn-sub">Lock the lockboxes and start the rescue</span>
     </button>
-    {% if minigames_enabled %}
-      <a href="/minigames" class="nav-link-hint muted">Or test a minigame →</a>
-    {% endif %}
+  </section>
+
+  <section id="ready-view" class="start-view" hidden>
+    <div class="room-status armed" role="presentation">
+      <span class="room-status-alert">Room armed</span>
+      <span>Lockboxes: locked · Awaiting the Gamemaster</span>
+    </div>
+    <button id="btn-begin" type="button" class="gm-console-btn start awaiting">
+      <span class="gm-console-btn-title">Scan to begin</span>
+      <span class="gm-console-btn-sub">Gamemaster: scan your reward badge when the room is set</span>
+    </button>
+    <p class="muted ready-hint">
+      Hide the rewards, restrain the prisoner, set the scene. The intro plays the moment the reward badge is scanned.
+    </p>
+    <button id="btn-ready-cancel" type="button" class="ghost">Cancel setup</button>
   </section>
 
   <div id="setup-modal" class="modal-overlay" hidden aria-modal="true" role="dialog" aria-labelledby="setup-modal-title">
@@ -39,7 +51,8 @@
       <section class="gm-preview-panel">
         <h3>Gamemaster — set up these locks</h3>
         <p class="muted gm-preview-hint">
-          Combinations are generated at random. Set each physical lock to match, then Start Game.
+          Combinations are generated at random. Set each physical lock to match, then Arm the room.
+          The game starts when you scan the reward badge.
         </p>
         <div id="gm-preview" class="gm-programming muted">Pick at least one lock to preview combinations.</div>
       </section>
@@ -48,7 +61,7 @@
       <div class="actions setup-modal-actions">
         <button id="btn-setup-cancel" type="button" class="ghost">Cancel</button>
         <button id="btn-setup-reroll" type="button" class="ghost">New combinations</button>
-        <button id="btn-setup-start" type="button" class="primary">Start Game</button>
+        <button id="btn-setup-start" type="button" class="primary">Arm the room</button>
       </div>
     </div>
   </div>
@@ -58,28 +71,13 @@
       <div>
         <h1>
           <span id="won-badge" class="won-badge" hidden>Prisoner freed</span>
-          <span id="bounty-won-badge" class="won-badge" hidden>You win</span>
           <span id="gm-won-badge" class="gm-won-badge" hidden>Game over</span>
         </h1>
-        <p id="phase-banner" class="phase-banner muted" hidden></p>
-        <p id="timer-display" class="timer-display" hidden></p>
         <div id="gm-controls" class="gm-controls" hidden>
           <span id="gm-status-line" class="muted gm-status-line"></span>
         </div>
       </div>
       <div class="active-pills">
-        <div id="rewards-pill" class="strike-pill reward-pill" hidden title="Rewards earned toward victory">
-          <span class="strike-label">Rewards</span>
-          <span id="rewards-count" class="strike-count">0 / 5</span>
-        </div>
-        <div id="bounty-good-pill" class="strike-pill clue-pill" hidden title="Working clues toward the next reward">
-          <span class="strike-label">Working clues</span>
-          <span id="bounty-good-count" class="strike-count">0 / 5</span>
-        </div>
-        <div id="collection-pill" class="strike-pill collection-pill" hidden title="Scan every RFID the Gamemaster handed out">
-          <span class="strike-label">Scans</span>
-          <span id="collection-count" class="strike-count">0 / 4</span>
-        </div>
         <div
           id="bad-codes-pill"
           class="strike-pill bad-pill"
@@ -97,17 +95,6 @@
           <span class="strike-label">Punishments</span>
           <span id="punishments-count" class="strike-count">0</span>
         </div>
-        {% if minigames_enabled %}
-          <div
-            id="clue-minigame-pill"
-            class="strike-pill clue-pill"
-            title="Each working clue recovered. At 3/3, a minigame opens next."
-          >
-            <span class="strike-label">Working clues</span>
-            <span id="clue-dots" class="strike-dots"></span>
-            <span id="clue-count" class="strike-count">0 / 3</span>
-          </div>
-        {% endif %}
       </div>
     </div>
     <section class="progress" id="locks-section">
@@ -161,7 +148,34 @@
     <p class="intro-skip muted">Tap to continue</p>
   </div>
 
-  <script src="/static/js/room_sounds.js?v=1"></script>
+  <div id="finale-overlay" class="finale-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="finale-title">
+    <canvas id="finale-confetti" class="finale-confetti" aria-hidden="true"></canvas>
+    <div class="room-status freed" role="presentation">
+      <span class="room-status-alert">Prisoner freed</span>
+      <span>Lockboxes: open · Rescue: complete</span>
+    </div>
+    <div class="crt">
+      <div class="crt-screen freed">
+        <div class="crt-eye" aria-hidden="true"></div>
+        <div>
+          <div id="finale-text" class="crt-text"></div>
+          <div id="finale-stats" class="finale-stats"></div>
+        </div>
+        <div class="crt-glitch" aria-hidden="true"></div>
+      </div>
+      <div class="crt-bezel" aria-hidden="true">
+        <span class="crt-grille"></span>
+        <span class="crt-leds"><span class="on"></span><span class="on"></span><span class="on"></span></span>
+        <span class="crt-grille"></span>
+      </div>
+    </div>
+    <div class="finale-actions">
+      <button id="btn-finale-again" type="button" class="primary">Play again</button>
+    </div>
+  </div>
+
+  <script src="/static/js/room_sounds.js?v=3"></script>
   <script src="/static/js/room_fx.js?v=1"></script>
-  <script src="/static/js/app.js?v=38"></script>
+  <script src="/static/js/room_finale.js?v=1"></script>
+  <script src="/static/js/app.js?v=40"></script>
 {% endblock %}

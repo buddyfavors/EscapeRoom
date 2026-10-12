@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from escape_room.game_engine import GameEngine
-from escape_room.models import Difficulty, GameMode, LockCounts, RfidTagFile
+from escape_room.models import LockCounts, RfidTagFile
 from escape_room.room_settings_store import RoomSettings
 
 BOX_A = "0000000101"
@@ -22,11 +22,7 @@ def _engine(lock4: int, digit4: int) -> GameEngine:
     engine.set_room_settings(
         RoomSettings(gamemaster_name="GM", lockbox_tags=[BOX_A, BOX_B, BOX_C])
     )
-    engine.start(
-        Difficulty.medium,
-        LockCounts(lock4=lock4, digit4=digit4),
-        game_mode=GameMode.breakout,
-    )
+    engine.start(LockCounts(lock4=lock4, digit4=digit4))
     return engine
 
 
